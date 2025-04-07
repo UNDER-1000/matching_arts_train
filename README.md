@@ -10,8 +10,8 @@ This project allows users to provide feedback (like/dislike) on images, and trai
 2.  Feature Extraction:
 *	Extract CLIP embeddings and color features separately.
 3.  Model Training:
-	*	Train individual models on each feature set.
-	*	Generate 5 prediction scores per image (from various models).
+	*	Train models on embeddings and colors.
+	*	Generate 5 prediction scores per image (from various models - [embeddings, color, noise, abstract, paint]).
 	*	Train a final classifier on these 5 scores to make the final prediction.
 4.	Data Handling:
    *	Uses Polars DataFrames and NumPy for efficient processing.
