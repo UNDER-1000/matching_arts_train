@@ -11,6 +11,7 @@ class Logic:
 		self.models: dict = dict(embeddings=None, colors=None, overall=None)
 	
 	def predict(self, image_ids: list[int], target: list[int]):  # target: 0 for disliked, 1 for like
+
 		# get score for each user choice
 		# step 1: for each classifier, get features (color, embeddings, noise, abstract, paint)
 		X_train = self.features.get_ids_np(image_ids=image_ids)
@@ -46,6 +47,7 @@ if __name__ == '__main__':
 	l = Logic()
 	image_ids = [4217, 1179, 4613, 4405, 2706, 1555, 5055, 1583, 3814, 1742, 4969, 3960]
 	target = [0, 1, 0, 0, 1, 0, 1, 1, 2, 0, 1, 1]
-	l.predict(image_ids=image_ids, target=target)
+	for i in range(2, len(image_ids)):
+		print(f'{image_ids[:i]}: {l.predict(image_ids=image_ids[:i], target=target[:i])[0][0]}')
 
 

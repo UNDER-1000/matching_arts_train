@@ -28,7 +28,7 @@ class Features:
 		else:
 			self.combined_df = pl.read_csv(self.csv_name)
 		
-		print(len(self.combined_df))
+		print(f"{len(self.combined_df)=}")
 	
 	def get_ids_np(self, image_ids):
 		selected_rows = self.combined_df.filter(pl.col("image_ids").is_in(image_ids))
