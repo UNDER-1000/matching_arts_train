@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from src.logic import Logic
+from typing import List
 
 
 class Predict(BaseModel):
@@ -22,10 +23,10 @@ app.add_middleware(
 
 
 @app.post('/predict')
-def predict(data: Predict) -> int:
+def predict(data: Predict) -> List[int]:
 	print(data)
 	sorted_ids, _, _ = main.predict(image_ids=data.image_ids, target=data.target)
-	return sorted_ids[0]
+	return sorted_ids[:10]
 
 
 if __name__ == '__main__':
