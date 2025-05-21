@@ -35,14 +35,18 @@ class Features:
 		embeddings = np.array([json.loads(e) for e in selected_rows['embeddings']])
 		colors = np.array([json.loads(e) for e in selected_rows['colors']])
 		classifiers = np.array(selected_rows.select([col for col in selected_rows.columns if col in self.classifier_api.classes]))
-		return dict(embeddings=embeddings, colors=colors, classifiers=classifiers)
+		return dict(embeddings=embeddings, colors=colors, classifiers=classifiers, abstract=np.array(selected_rows['abstract']), noisy=np.array(selected_rows['noisy']), paint=np.array(selected_rows['paint']))
 
 	def get_not_ids_np(self, image_ids):
 		selected_rows = self.combined_df.filter(~pl.col("image_ids").is_in(image_ids))
 		embeddings = np.array([json.loads(e) for e in selected_rows['embeddings']])
 		colors = np.array([json.loads(e) for e in selected_rows['colors']])
 		classifiers = np.array(selected_rows.select([col for col in selected_rows.columns if col in self.classifier_api.classes]))
-		return dict(embeddings=embeddings, colors=colors, classifiers=classifiers)
+		ids = np.array(selected_rows['image_ids'])
+		return dict(embeddings=embeddings, colors=colors, classifiers=classifiers, abstract=np.array(selected_rows['abstract']), noisy=np.array(selected_rows['noisy']), paint=np.array(selected_rows['paint']), ids=ids)
+
+	def get_all_ids_np(self):
+		return np.array(self.combined_df['image_ids'])
 	
 	def get_pred_likes(self, image_ids, sorted_indexes):
 		selected_rows = self.combined_df.filter(~pl.col("image_ids").is_in(image_ids))
