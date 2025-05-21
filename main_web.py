@@ -20,7 +20,11 @@ VALID_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp')
 class Predict(BaseModel):
     image_ids: List[int]
     target: List[int]
-    save_predict: bool
+    embedding: float
+    color: float
+    abstract: float
+    noisy: float
+    paint: float
 
 class ImageInfo(BaseModel):
     path: str
@@ -96,11 +100,22 @@ async def predict(data: Predict) -> List[int]:
         image_ids=data.image_ids,
         target=data.target,
         session_id=session_id,
-        save_predict=data.save_predict
+        embedding_weight=data.embedding,
+        color_weight=data.color,
+        abstract_weight=data.abstract,
+        noisy_weight=data.noisy,
+        paint_weight=data.paint
     )
     predict_top_10 = sorted_ids[:10]
 
     active_predictions_sessions[session_id] = {
+        'weight': {
+            'embedding': data.embedding,
+            'color': data.color,
+            'abstract': data.abstract,
+            'noisy': data.noisy,
+            'paint': data.paint
+        },
         'liked': [id for id , label in zip(data.image_ids, data.target) if label == 1],
         'disliked': [id for id , label in zip(data.image_ids, data.target) if label == 0],
         'predicted': predict_top_10
@@ -122,6 +137,7 @@ async def receive_feedback(data: PredictionFidback):
         return JSONResponse({"error": "Invalid session ID"}, status_code=400)
 
     session_info = active_predictions_sessions[session_id]
+    weights = session_info['weight']
     predicted_ids_for_session = session_info['predicted']
     liked_ids = session_info['liked']
     disliked_ids = session_info['disliked']
@@ -130,9 +146,9 @@ async def receive_feedback(data: PredictionFidback):
     liked_feedback_ids = [img_id for img_id , rating in feedback.items() if rating == 1 and img_id in predicted_ids_for_session]
     disliked_feedback_ids = [img_id for img_id , rating in feedback.items() if rating == 0 and img_id in predicted_ids_for_session]
 
-    main.log_prediction_and_feedback(session_id=session_id, liked_ids=liked_ids, disliked_ids=disliked_ids, top_predictions=[], feedback_liked=liked_feedback_ids, feedback_disliked=disliked_feedback_ids)
+    main.log_prediction_and_feedback(session_id=session_id, weight=weights, liked_ids=liked_ids, disliked_ids=disliked_ids, top_predictions=[], feedback_liked=liked_feedback_ids, feedback_disliked=disliked_feedback_ids)
     return JSONResponse({"message": "Feedback received and saved successfully!"})
 
 # --- Run with Uvicorn ---
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8888)

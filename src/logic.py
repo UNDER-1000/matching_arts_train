@@ -4,7 +4,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import csv
 import os
 import json
-from typing import List
+from typing import List, Dict
 from src.features import Features
 
 
@@ -21,9 +21,9 @@ class Logic:
 		if not os.path.exists(self.log_file_path):
 			with open(self.log_file_path, 'w', newline='') as csvfile:
 				writer = csv.writer(csvfile)
-				writer.writerow(['prediction_session_id', 'liked_ids', 'disliked_ids', 'top_predictions', "feedback_liked", "feedback_disliked"])
+				writer.writerow(['prediction_session_id', 'weight', 'liked_ids', 'disliked_ids', 'top_predictions', "feedback_liked", "feedback_disliked"])
 
-	def log_prediction_and_feedback(self, session_id: str, liked_ids: List[int], disliked_ids: List[int], top_predictions: List[dict], feedback_liked: List[int] = None, feedback_disliked: List[int] = None):
+	def log_prediction_and_feedback(self, session_id: str, weight:Dict[str, float], liked_ids: List[int], disliked_ids: List[int], top_predictions: List[dict], feedback_liked: List[int] = None, feedback_disliked: List[int] = None):
 		"""Logs a new prediction entry or updates an existing one with feedback."""
 		if feedback_liked is None:
 			feedback_liked = []
@@ -39,7 +39,7 @@ class Logic:
 				reader = csv.reader(csvfile)
 				header = next(reader)
 
-				expected_headers = ['prediction_session_id', 'liked_ids', 'disliked_ids', 'top_predictions', "feedback_liked", "feedback_disliked"]
+				expected_headers = ['prediction_session_id', 'weight', 'liked_ids', 'disliked_ids', 'top_predictions', "feedback_liked", "feedback_disliked"]
 				if header != expected_headers:
 					print(f"Warning: CSV header mismatch. Expected {expected_headers}, got {header}. Appending new data.")
 					rows.append(header) # Keep existing header if mismatched
@@ -49,8 +49,8 @@ class Logic:
 				for row in reader:
 					if row[0] == session_id:
 						# Update the existing row with feedback
-						row[4] = json.dumps(feedback_liked)
-						row[5] = json.dumps(feedback_disliked)
+						row[5] = json.dumps(feedback_liked)
+						row[6] = json.dumps(feedback_disliked)
 						found_and_updated = True
 					rows.append(row)
 
@@ -58,6 +58,7 @@ class Logic:
 		if not found_and_updated:
 			new_row = [
 				session_id,
+				json.dumps(weight),
 				json.dumps(liked_ids),
 				json.dumps(disliked_ids),
 				json.dumps(top_predictions),
@@ -71,54 +72,6 @@ class Logic:
 			writer = csv.writer(csvfile)
 			writer.writerows(rows)
 		print(f"Logged/updated prediction session {session_id} in {self.log_file_path}")
-
-	def save_prediction_row_to_csv(self, liked_ids, disliked_ids, all_image_ids, sorted_indexes, scores_dict, classifiers_array, filename='predictions_log.csv'):
-		os.makedirs('logs', exist_ok=True)
-		filepath = os.path.join('logs', filename)
-
-		with open(filepath, 'a', newline='') as csvfile:
-			writer = csv.writer(csvfile)
-			if csvfile.tell() == 0:
-				writer.writerow(['liked_ids', 'disliked_ids', 'top_predictions'])
-
-			top_preds = []
-			for idx in sorted_indexes[:10]:
-				image_id = all_image_ids[idx]
-				noisy, abstract, paint = classifiers_array[idx]
-
-				top_preds.append({
-					"id": int(image_id),
-					"overall": round(float(scores_dict['overall'][idx]), 4),
-					"embeddings": round(float(scores_dict['embeddings'][idx]), 4),
-					"colors": round(float(scores_dict['colors'][idx]), 4),
-					"noisy": round(float(noisy), 4),
-					"abstract": round(float(abstract), 4),
-					"paint": round(float(paint), 4)
-				})
-
-			writer.writerow([
-				json.dumps(liked_ids),
-				json.dumps(disliked_ids),
-				json.dumps(top_preds)
-			])
-
-	def save_prediction_feedback_to_csv(self, session_id: str, predicted_images: List[int], liked_feedback: List[int], disliked_feedback: List[int], filename='prediction_feedback_log.csv'):
-		"""Saves feedback on predicted images to a CSV file."""
-		os.makedirs('logs', exist_ok=True)
-		filepath = os.path.join('logs', filename)
-
-		with open(filepath, 'a', newline='') as csvfile:
-			writer = csv.writer(csvfile)
-			if csvfile.tell() == 0:
-				writer.writerow(['session_id', 'predicted_images', 'liked_feedback', 'disliked_feedback', 'timestamp'])
-
-			writer.writerow([
-				session_id,
-				json.dumps(predicted_images),
-				json.dumps(liked_feedback),
-				json.dumps(disliked_feedback),
-				np.datetime_as_string(np.datetime64('now'))
-			])
 
 	def mean_or_zeros(self, data, key, default_shape):
 		return np.mean(data[key], axis=0) if data[key].size > 0 else np.zeros(default_shape)
@@ -136,7 +89,7 @@ class Logic:
 
 		return (np.abs(candidates[name] - liked_val) - np.abs(candidates[name] - disliked_val)).reshape(-1, 1)
 
-	def predict(self, image_ids: list[int], target: list[int],session_id, save_predict=False):  # target: 0 for disliked, 1 for like
+	def predict(self, image_ids: list[int], target: list[int],session_id, embedding_weight:float=0.4, color_weight:float=0.3, abstract_weight:float=0.1, noisy_weight:float=0.1, paint_weight:float=0.1):
 		liked_ids = [id for id, label in zip(image_ids, target) if label == 1]
 		disliked_ids = [id for id, label in zip(image_ids, target) if label == 0]
 		print(f"{len(liked_ids)=}, {len(disliked_ids)=}")
@@ -168,7 +121,7 @@ class Logic:
 		noisy_score = np.squeeze(noisy_score)
 
 		# Final score
-		overall_score = (0.4 * emb_score + 0.4 * col_score + 0.3 * abstract_score + 0.1 * paint_score + 0.1 * noisy_score)
+		overall_score = (embedding_weight * emb_score + color_weight * col_score + abstract_weight * abstract_score + paint_weight * paint_score + noisy_weight * noisy_score)
 
 		sorted_indexes = np.argsort(overall_score)[::-1]
 
@@ -185,27 +138,35 @@ class Logic:
 		predicted_image_details = []
 		for idx in sorted_indexes[:10]:
 			image_id = candidates['ids'][idx] # Get the actual ID for the predicted image
-			noisy, abstract, paint = candidates['classifiers'][idx] # Get classifier scores for this predicted image
+			noisy_score, abstract_score, paint_score = candidates['classifiers'][idx] # Get classifier scores for this predicted image
 
 			predicted_image_details.append({
 				"id": int(image_id),
 				"overall": round(float(score_dict['overall'][idx]), 4),
 				"embeddings": round(float(score_dict['embeddings'][idx]), 4),
 				"colors": round(float(score_dict['colors'][idx]), 4),
-				"noisy": round(float(noisy), 4),
-				"abstract": round(float(abstract), 4),
-				"paint": round(float(paint), 4)
+				"noisy": round(float(noisy_score), 4),
+				"abstract": round(float(abstract_score), 4),
+				"paint": round(float(paint_score), 4)
 			})
 
-		if save_predict:
-			self.log_prediction_and_feedback(
-				session_id=session_id,
-				liked_ids=liked_ids,
-				disliked_ids=disliked_ids,
-				top_predictions=predicted_image_details,
-				feedback_liked=[],
-				feedback_disliked=[]
-			)
+		weight = {
+			'embeddings': embedding_weight,
+			'colors': color_weight,
+			'abstract': abstract_weight,
+			'paint': paint_weight,
+			'noisy': noisy_weight
+		}
+
+		self.log_prediction_and_feedback(
+			session_id=session_id,
+			weight=weight,
+			liked_ids=liked_ids,
+			disliked_ids=disliked_ids,
+			top_predictions=predicted_image_details,
+			feedback_liked=[],
+			feedback_disliked=[]
+		)
 
 		return self.features.get_pred_likes(image_ids=image_ids, sorted_indexes=sorted_indexes), overall_score[sorted_indexes], score_dict
 
