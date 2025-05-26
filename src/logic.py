@@ -78,6 +78,7 @@ class Logic:
 			return np.zeros(default_shape)
 		return np.mean(data[key], axis=0) if data[key].size > 0 else np.zeros(default_shape)
 
+
 	def score_scalar_feature(self, candidates, liked, disliked, name: str):
 		if liked is not None and name in liked and len(liked[name]) > 0:
 			liked_val = np.mean(liked[name])
@@ -102,8 +103,8 @@ class Logic:
 		candidates = self.features.get_not_ids_np(image_ids=image_ids)
 		all_ids = self.features.get_all_ids_np()
 
-		mean_liked_emb = self.mean_or_zeros(liked, 'embeddings', candidates['embeddings'].shape)
-		mean_dis_emb = self.mean_or_zeros(disliked, 'embeddings', candidates['embeddings'].shape)
+		mean_liked_emb = self.mean_or_zeros(liked, 'embeddings', candidates['embeddings'].shape[1])
+		mean_dis_emb = self.mean_or_zeros(disliked, 'embeddings', candidates['embeddings'].shape[1])
 		mean_liked_col = self.mean_or_zeros(liked, 'colors', candidates['colors'].shape[1])
 		mean_dis_col = self.mean_or_zeros(disliked, 'colors', candidates['colors'].shape[1])
 
