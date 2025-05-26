@@ -74,6 +74,8 @@ class Logic:
 		print(f"Logged/updated prediction session {session_id} in {self.log_file_path}")
 
 	def mean_or_zeros(self, data, key, default_shape):
+		if data is None or key not in data or data[key] is None:
+			return np.zeros(default_shape)
 		return np.mean(data[key], axis=0) if data[key].size > 0 else np.zeros(default_shape)
 
 	def score_scalar_feature(self, candidates, liked, disliked, name: str):
