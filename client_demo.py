@@ -1,0 +1,185 @@
+import requests
+import json
+import os # Added for file system operations
+import uuid # Added for generating unique IDs
+from datetime import datetime
+import time
+import random
+
+# --- Configuration ---
+BASE_URL = "http://localhost:8000"
+IMAGE_FOLDER_CLIENT = "data/data" # Path to your image folder relative to where client runs
+VALID_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp')
+
+# --- Helper Functions for API Interaction ---
+
+def add_artwork(artwork_data: dict):
+    """
+    Calls the /add-artwork endpoint to add a single artwork.
+    """
+    print(f"\n--- Adding artwork: {artwork_data.get('artwork_name')} ---")
+    url = f"{BASE_URL}/add-artwork"
+    try:
+        response = requests.post(url, json=artwork_data)
+        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+        data = response.json()
+        print("Artwork added successfully:")
+        print(json.dumps(data, indent=2))
+        return True # Indicate success
+    except requests.exceptions.RequestException as e:
+        print(f"Error adding artwork: {e}")
+        if response is not None:
+            print(f"Response status: {response.status_code}")
+            print(f"Response detail: {response.text}")
+        return False # Indicate failure
+
+def user_interaction(user_id: str, artwork_id: str, action: str):
+    """
+    Calls the /user-interaction endpoint to simulate a user's action.
+    """
+    print(f"\n--- User '{user_id}' performing '{action}' on artwork '{artwork_id}' ---")
+    url = f"{BASE_URL}/user-interaction"
+    interaction_data = {
+        "user_id": user_id,
+        "artwork_id": artwork_id,
+        "action": action,
+        "timestamp": datetime.now().isoformat()
+    }
+    try:
+        response = requests.post(url, json=interaction_data)
+        response.raise_for_status()
+        data = response.json()
+        print("Recommendations received:")
+        print(json.dumps(data, indent=2))
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error during user interaction: {e}")
+        if response is not None:
+            print(f"Response status: {response.status_code}")
+            print(f"Response detail: {response.text}")
+        return []
+
+# --- New client-side function to populate artworks ---
+def populate_artworks_from_folder(limit: int = 15):
+    """
+    Reads image files from a local folder, constructs Artwork data,
+    and sends individual POST requests to the /add-artwork endpoint.
+    Generates consistent, non-'garbage' dummy data for missing fields.
+    """
+    print(f"\n--- Populating artworks from '{IMAGE_FOLDER_CLIENT}' (limit={limit}) ---")
+    
+    loaded_ids = []
+    count = 0
+
+    if not os.path.exists(IMAGE_FOLDER_CLIENT):
+        print(f"Error: Image folder '{IMAGE_FOLDER_CLIENT}' not found.")
+        return []
+
+    for root, _, files in os.walk(IMAGE_FOLDER_CLIENT):
+        for filename in sorted(files):
+            if filename.lower().endswith(VALID_EXTENSIONS):
+                if count >= limit:
+                    break
+
+                # Generate a unique ID (can be based on filename or a UUID)
+                artwork_id = os.path.splitext(filename)[0] + "-" + str(uuid.uuid4())[:4]
+                artwork_name = os.path.splitext(filename)[0].replace('_', ' ').title()
+                
+                # Consistent (non-'garbage') dummy data
+                artist_name = f"Artist_{random.choice(['A', 'B', 'C'])}"
+                description = f"A beautiful piece named '{artwork_name}' by {artist_name}, digitally imported."
+                category = random.choice(["Abstract", "Portrait", "Landscape", "Still Life"])
+                style = random.choice(["Modern", "Impressionist", "Surreal", "Realistic"])
+                subject = random.choice(["Nature", "People", "Objects", "Emotions"])
+                
+                artwork_data = {
+                    "artwork_id": artwork_id,
+                    "artist_id": f"artst-{hash(artist_name) % 1000}", # Simple hash for artist ID
+                    "artist_name": artist_name,
+                    "artwork_name": artwork_name,
+                    # Assuming /images endpoint on server serves images from data/data
+                    "images": [f"{IMAGE_FOLDER_CLIENT}/{filename}"], 
+                    "description": description,
+                    "category": category,
+                    "properties": {"source": "local_folder_import", "client_generated": True},
+                    "media": "Digital File",
+                    "medium": "Mixed Media",
+                    "size": "Digital",
+                    "price": round(random.uniform(100.0, 5000.0), 2), # Random price
+                    "styles": [style],
+                    "subject": subject
+                }
+
+                if add_artwork(artwork_data): # Use the existing add_artwork helper to send
+                    loaded_ids.append(artwork_id)
+                    count += 1
+                
+                time.sleep(0.1) # Small delay to not overwhelm the server
+
+            if count >= limit:
+                break
+        if count >= limit:
+            break
+            
+    print(f"\nSuccessfully populated {len(loaded_ids)} artworks via individual API calls.")
+    return loaded_ids
+
+# --- Demo Client Logic ---
+if __name__ == "__main__":
+    print("Starting FastAPI Demo Client...")
+
+    # 1. Populate initial artworks by sending individual requests from the client
+    # This now scans your local 'data/data' folder and sends each artwork.
+    all_artwork_ids_in_system = populate_artworks_from_folder(limit=2)
+
+    # if not all_artwork_ids_in_system:
+    #     print("\nNo artworks were added. Cannot proceed with interactions.")
+    #     print("Ensure 'data/data' folder exists with images and FastAPI app is running.")
+    # else:
+    #     # 2. Add a custom artwork (separate from the loaded images)
+    #     custom_artwork_id = "custom-painting-456"
+    #     custom_artwork = {
+    #         "artwork_id": custom_artwork_id,
+    #         "artist_id": "artist-JaneDoe",
+    #         "artist_name": "Jane Doe",
+    #         "artwork_name": "Abstract Dreams",
+    #         "images": ["https://placehold.co/600x400/2980B9/FFFFFF?text=Abstract+Dreams"],
+    #         "description": "A dreamlike abstract composition.",
+    #         "category": "Abstract",
+    #         "properties": {"creation_method": "digital", "inspiration": "dreams"},
+    #         "media": "Canvas Print",
+    #         "medium": "Acrylic",
+    #         "size": "30x40 inches",
+    #         "price": 850.00,
+    #         "styles": ["Abstract Expressionism"],
+    #         "subject": "Concepts"
+    #     }
+    #     add_artwork(custom_artwork)
+
+        # # Add the custom artwork ID to our list for potential interaction
+        # all_artwork_ids_in_system.append(custom_artwork_id)
+
+    # 3. Simulate user interactions
+    user1_id = "user_alpha"
+    user2_id = "user_beta"
+
+    if all_artwork_ids_in_system:
+        # User 1 likes a random artwork from the loaded ones
+        artwork_to_like = random.choice(all_artwork_ids_in_system)
+        user_interaction(user1_id, artwork_to_like, "like")
+        time.sleep(1)
+
+        # User 1 dislikes another random artwork
+        artwork_to_dislike = random.choice(all_artwork_ids_in_system)
+        user_interaction(user1_id, artwork_to_dislike, "dislike")
+        time.sleep(1)
+
+        # User 2 likes the custom artwork
+        user_interaction(user2_id, all_artwork_ids_in_system[0], "like")
+        time.sleep(1)
+
+        # User 2 likes another artwork
+        another_artwork_for_user2 = random.choice(all_artwork_ids_in_system[1])
+        user_interaction(user2_id, another_artwork_for_user2, "like")
+
+    print("\nDemo client finished.")
