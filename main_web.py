@@ -18,7 +18,7 @@ VALID_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp')
 
 # --- Data Models ---
 class Predict(BaseModel):
-    image_ids: List[int]
+    artwork_id: List[int]
     target: List[int]
     embedding: float
     color: float
@@ -97,7 +97,7 @@ async def predict(data: Predict) -> List[int]:
     # Generate a unique session ID for the prediction
     session_id = str(uuid.uuid4())
     sorted_ids, _, _ = main.predict(
-        image_ids=data.image_ids,
+        artwork_id=data.artwork_id,
         target=data.target,
         session_id=session_id,
         embedding_weight=data.embedding,
@@ -116,8 +116,8 @@ async def predict(data: Predict) -> List[int]:
             'noisy': data.noisy,
             'paint': data.paint
         },
-        'liked': [id for id , label in zip(data.image_ids, data.target) if label == 1],
-        'disliked': [id for id , label in zip(data.image_ids, data.target) if label == 0],
+        'liked': [id for id , label in zip(data.artwork_id, data.target) if label == 1],
+        'disliked': [id for id , label in zip(data.artwork_id, data.target) if label == 0],
         'predicted': predict_top_10
     }
     print(f"Session ID: {session_id}, Predictions: {predict_top_10}")

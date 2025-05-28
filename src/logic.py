@@ -6,16 +6,21 @@ import os
 import json
 from typing import List, Dict
 from src.features import Features
+from models import Artwork
 
 
 class Logic:
 	
-	def __init__(self):
-		self.features = Features()
-		self.models: dict = dict(embeddings=None, colors=None, overall=None)
+	def __init__(self, real_api=False):
+		self.features = Features(real_api=real_api)
+		# self.models: dict = dict(embeddings=None, colors=None, overall=None)
 		self.log_file_path = os.path.join('logs', 'predictions_log.csv')
 		os.makedirs('logs', exist_ok=True)
 		self._initialize_log_file()
+
+	def add_artwork(self, artwork: Artwork):
+		"""Add a new image to the dataset."""
+		return self.features.add_artwork(artwork)
 
 	def _initialize_log_file(self):
 		if not os.path.exists(self.log_file_path):
@@ -76,31 +81,31 @@ class Logic:
 	def mean_or_zeros(self, data, key, default_shape):
 		if data is None or key not in data or data[key] is None:
 			return np.zeros(default_shape)
-		return np.mean(data[key], axis=0) if data[key].size > 0 else np.zeros(default_shape)
+		return np.mean(data[key].astype(float), axis=0) if data[key].size > 0 else np.zeros(default_shape)
 
 
 	def score_scalar_feature(self, candidates, liked, disliked, name: str):
 		if liked is not None and name in liked and len(liked[name]) > 0:
-			liked_val = np.mean(liked[name])
+			liked_val = np.mean(liked[name].astype(float))
 		else:
 			liked_val = 0.0
 
 		if disliked is not None and name in disliked and len(disliked[name]) > 0:
-			disliked_val = np.mean(disliked[name])
+			disliked_val = np.mean(disliked[name].astype(float))
 		else:
 			disliked_val = 0.0
 
-		return (np.abs(candidates[name] - liked_val) - np.abs(candidates[name] - disliked_val)).reshape(-1, 1)
+		return (np.abs(candidates[name].astype(float) - liked_val) - np.abs(candidates[name].astype(float) - disliked_val)).reshape(-1, 1)
 
-	def predict(self, image_ids: list[int], target: list[int],session_id, embedding_weight:float=0.4, color_weight:float=0.3, abstract_weight:float=0.1, noisy_weight:float=0.1, paint_weight:float=0.1):
-		liked_ids = [id for id, label in zip(image_ids, target) if label == 1]
-		disliked_ids = [id for id, label in zip(image_ids, target) if label == 0]
+	def predict(self, artwork_id: list[int], target: list[int],session_id = "", embedding_weight:float=0.4, color_weight:float=0.3, abstract_weight:float=0.1, noisy_weight:float=0.1, paint_weight:float=0.1):
+		liked_ids = [id for id, label in zip(artwork_id, target) if label == 1]
+		disliked_ids = [id for id, label in zip(artwork_id, target) if label == 0]
 		print(f"{len(liked_ids)=}, {len(disliked_ids)=}")
 
 		# Features
-		liked = self.features.get_ids_np(image_ids=liked_ids) if liked_ids else None
-		disliked = self.features.get_ids_np(image_ids=disliked_ids) if disliked_ids else None
-		candidates = self.features.get_not_ids_np(image_ids=image_ids)
+		liked = self.features.get_ids_np(artwork_id=liked_ids) if liked_ids else None
+		disliked = self.features.get_ids_np(artwork_id=disliked_ids) if disliked_ids else None
+		candidates = self.features.get_not_ids_np(artwork_id=artwork_id)
 		all_ids = self.features.get_all_ids_np()
 
 		mean_liked_emb = self.mean_or_zeros(liked, 'embeddings', candidates['embeddings'].shape[1])
@@ -143,15 +148,16 @@ class Logic:
 			image_id = candidates['ids'][idx] # Get the actual ID for the predicted image
 			noisy_score, abstract_score, paint_score = candidates['classifiers'][idx] # Get classifier scores for this predicted image
 
-			predicted_image_details.append({
-				"id": int(image_id),
-				"overall": round(float(score_dict['overall'][idx]), 4),
-				"embeddings": round(float(score_dict['embeddings'][idx]), 4),
-				"colors": round(float(score_dict['colors'][idx]), 4),
-				"noisy": round(float(noisy_score), 4),
-				"abstract": round(float(abstract_score), 4),
-				"paint": round(float(paint_score), 4)
-			})
+			if session_id != "":
+				predicted_image_details.append({
+					"id": int(image_id),
+					"overall": round(float(score_dict['overall'][idx]), 4),
+					"embeddings": round(float(score_dict['embeddings'][idx]), 4),
+					"colors": round(float(score_dict['colors'][idx]), 4),
+					"noisy": round(float(noisy_score), 4),
+					"abstract": round(float(abstract_score), 4),
+					"paint": round(float(paint_score), 4)
+				})
 
 		weight = {
 			'embeddings': embedding_weight,
@@ -161,26 +167,27 @@ class Logic:
 			'noisy': noisy_weight
 		}
 
-		self.log_prediction_and_feedback(
-			session_id=session_id,
-			weight=weight,
-			liked_ids=liked_ids,
-			disliked_ids=disliked_ids,
-			top_predictions=predicted_image_details,
-			feedback_liked=[],
-			feedback_disliked=[]
-		)
+		if session_id != "":
+			self.log_prediction_and_feedback(
+				session_id=session_id,
+				weight=weight,
+				liked_ids=liked_ids,
+				disliked_ids=disliked_ids,
+				top_predictions=predicted_image_details,
+				feedback_liked=[],
+				feedback_disliked=[]
+			)
 
-		return self.features.get_pred_likes(image_ids=image_ids, sorted_indexes=sorted_indexes), overall_score[sorted_indexes], score_dict
+		return self.features.get_pred_likes(artwork_id=artwork_id, sorted_indexes=sorted_indexes), overall_score[sorted_indexes], score_dict
 
 		# # get score for each user choice
 		# # step 1: for each classifier, get features (color, embeddings, noise, abstract, paint)
-		# X_train = self.features.get_ids_np(image_ids=image_ids)
+		# X_train = self.features.get_ids_np(artwork_id=artwork_id)
 		# y_train = np.array(target)
 		# y_train_scores = dict()
 		
 		# all_ids = self.features.get_all_ids_np()
-		# X_pred = self.features.get_not_ids_np(image_ids=image_ids)
+		# X_pred = self.features.get_not_ids_np(artwork_id=artwork_id)
 		# y_pred_scores = dict()
 		# # step 2: train model on user_images - embeddings
 		# self.models['embeddings'] = LogisticRegression().fit(X_train['embeddings'], y_train)
@@ -209,15 +216,15 @@ class Logic:
 		# }
 
 		# if save_predict:
-		# 	self.save_prediction_row_to_csv(liked_ids=liked_ids, disliked_ids=disliked_ids, all_image_ids = all_ids, sorted_indexes=sorted_indexes, scores_dict=score_dict, classifiers_array=X_pred['classifiers'])
-		# return self.features.get_pred_likes(image_ids=image_ids, sorted_indexes=sorted_indexes), results[sorted_indexes], target_pred
+		# 	self.save_prediction_row_to_csv(liked_ids=liked_ids, disliked_ids=disliked_ids, all_artwork_id = all_ids, sorted_indexes=sorted_indexes, scores_dict=score_dict, classifiers_array=X_pred['classifiers'])
+		# return self.features.get_pred_likes(artwork_id=artwork_id, sorted_indexes=sorted_indexes), results[sorted_indexes], target_pred
 		
 		
 if __name__ == '__main__':
 	l = Logic()
-	image_ids = [4217, 1179, 4613, 4405, 2706, 1555, 5055, 1583, 3814, 1742, 4969, 3960]
+	artwork_id = [4217, 1179, 4613, 4405, 2706, 1555, 5055, 1583, 3814, 1742, 4969, 3960]
 	target = [0, 1, 0, 0, 1, 0, 1, 1, 2, 0, 1, 1]
-	for i in range(2, len(image_ids)):
-		print(f'{image_ids[:i]}: {l.predict(image_ids=image_ids[:i], target=target[:i])[0][0]}')
+	for i in range(2, len(artwork_id)):
+		print(f'{artwork_id[:i]}: {l.predict(artwork_id=artwork_id[:i], target=target[:i])[0][0]}')
 
 

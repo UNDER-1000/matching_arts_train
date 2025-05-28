@@ -10,14 +10,14 @@ class ClassifiersApi:
 		self.classes = ['noisy', 'abstract', 'paint']
 		self.models = dict(noisy=joblib.load(Config.noisy_model_path), abstract=joblib.load(Config.abstract_model_path), paint=joblib.load(Config.paint_model_path))
 	
-	def pp(self, embeddings, image_ids: list[str]) -> pl.DataFrame:
-		return self.predict_all(embeddings, image_ids)
+	def pp(self, embeddings, artwork_id: list[str]) -> pl.DataFrame:
+		return self.predict_all(embeddings, artwork_id)
 	
-	def predict_all(self, embeddings: np.ndarray, image_ids: list[str]):
+	def predict_all(self, embeddings: np.ndarray, artwork_id: list[str]):
 		results = np.empty((len(embeddings), len(self.classes)))
 		for i, j in enumerate(self.classes):
 			results[:, i] = self.models[j].predict(embeddings).reshape(-1)
-		df = pl.DataFrame({"image_ids": image_ids, **{self.classes[i]: results[:, i] for i in range(len(self.classes))}})
+		df = pl.DataFrame({"artwork_id": artwork_id, **{self.classes[i]: results[:, i] for i in range(len(self.classes))}})
 		# df.write_csv(self.csv_name)
 		return df
 	
@@ -26,3 +26,9 @@ class ClassifiersApi:
 		for i, j in enumerate(self.classes):
 			results[:, i] = self.models[j].predict(embeddings).reshape(-1)
 		return results
+	
+	def predict_from_embedding(self, embedding: list[float]) -> dict:
+		embedding_np = np.array(embedding).reshape(1, -1)
+		predictions = {cls: int(self.models[cls].predict(embedding_np)[0]) for cls in self.classes}
+		return predictions
+

@@ -304,7 +304,7 @@ async function submitInitialRatings() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        image_ids: ratedImageIds.map(Number),
+        artwork_id: ratedImageIds.map(Number),
         target: targets,
         // Include the new parameters
         embedding: embedding,

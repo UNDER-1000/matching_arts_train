@@ -12,17 +12,17 @@ class ColorsApi:
 		self.images_folder = Config.images_folder
 		self.n_bins = Config.colors_n_bins
 	
-	def pp(self, image_ids):
-		return self.predict_all(image_ids)
+	def pp(self, artwork_id):
+		return self.predict_all(artwork_id)
 	
-	def predict_all(self, image_ids: list[str]):
-		results = self.predict_batch(image_ids)
+	def predict_all(self, artwork_id: list[str]):
+		results = self.predict_batch(artwork_id)
 		
-		df = pl.DataFrame({"image_ids": image_ids, "colors": [json.dumps(color.tolist()) for color in results]})
+		df = pl.DataFrame({"artwork_id": artwork_id, "colors": [json.dumps(color.tolist()) for color in results]})
 		return df
 		
-	def predict_batch(self, image_ids: list[str]):
-		pil_images = [Image.open(f"{self.images_folder}{img}.jpg") for img in image_ids]
+	def predict_batch(self, artwork_id: list[str]):
+		pil_images = [Image.open(f"{self.images_folder}{img}.jpg") for img in artwork_id]
 		cv2_images = []
 		for pil_image in pil_images:
 			cv2_images.append(cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV))
@@ -38,3 +38,18 @@ class ColorsApi:
 			colors_vec = color_histogram / np.linalg.norm(color_histogram)
 			results[i] = np.array(colors_vec)
 		return results
+	
+	def predict_from_path(self, image_path: str) -> list[float]:
+		pil_image = Image.open(image_path)
+		cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
+		
+		h = (cv_image[:, :, 0] / 180 * self.n_bins).astype(int)
+		h = np.clip(h, 0, self.n_bins - 1)
+		
+		unique_values, counts = np.unique(h, return_counts=True)
+		color_histogram = np.zeros(self.n_bins)
+		color_histogram[unique_values] = counts
+		colors_vec = color_histogram / np.linalg.norm(color_histogram)
+		
+		return colors_vec.tolist()
+

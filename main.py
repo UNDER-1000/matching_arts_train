@@ -7,7 +7,7 @@ from typing import List
 
 
 class Predict(BaseModel):
-	image_ids: list[int]
+	artwork_id: list[int]
 	target: list[int]
 
 
@@ -25,7 +25,7 @@ app.add_middleware(
 @app.post('/predict')
 def predict(data: Predict) -> List[int]:
 	print(data)
-	sorted_ids, _, _ = main.predict(image_ids=data.image_ids, target=data.target)
+	sorted_ids, _, _ = main.predict(artwork_id=data.artwork_id, target=data.target)
 	return sorted_ids[:10]
 
 
