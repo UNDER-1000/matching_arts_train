@@ -3,7 +3,16 @@ import torch
 from PIL import Image
 import numpy as np
 from sklearn.preprocessing import normalize
+import requests
+from io import BytesIO
 
+def load_image(path_or_url):
+    if path_or_url.startswith('http://') or path_or_url.startswith('https://'):
+        response = requests.get(path_or_url)
+        response.raise_for_status()
+        return Image.open(BytesIO(response.content)).convert("RGB")
+    else:
+        return Image.open(path_or_url).convert("RGB")
 
 class ConfigClip:
 	def __init__(self):
@@ -32,7 +41,7 @@ class ClipEmbed:
 	def predict_imgs(self, urls: list[str]) -> np.ndarray:
 		# imgs = self.preprocessing(urls)
 		
-		imgs = [self.model_preprocess(Image.open(img_path).convert("RGB")) for img_path in urls]
+		imgs = [self.model_preprocess(load_image(img_path)) for img_path in urls]
 		imgs = torch.stack(imgs).to(self.device)
 		
 		with torch.no_grad():

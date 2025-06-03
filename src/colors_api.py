@@ -4,7 +4,8 @@ import polars as pl
 import json
 from PIL import Image
 from src.config import Config
-
+import requests
+from io import BytesIO
 
 class ColorsApi:
 	
@@ -40,7 +41,12 @@ class ColorsApi:
 		return results
 	
 	def predict_from_path(self, image_path: str) -> list[float]:
-		pil_image = Image.open(image_path)
+		if image_path.startswith("http://") or image_path.startswith("https://"):
+			response = requests.get(image_path)
+			response.raise_for_status()
+			pil_image = Image.open(BytesIO(response.content))
+		else:
+			pil_image = Image.open(image_path)
 		cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
 		
 		h = (cv_image[:, :, 0] / 180 * self.n_bins).astype(int)
