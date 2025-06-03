@@ -1,0 +1,59 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+        service_account_key: ${{ env.GCP_SA_KEY }}
+        export_default_credentials: true
+
+    - name: Build and Push Backend
+      run: |
+        gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/matching-arts-backend
+
+    - name: Deploy Backend to Cloud Run
+      run: |
+        gcloud run deploy matching-arts-backend \
+          --image gcr.io/${{ env.PROJECT_ID }}/matching-arts-backend \
+          --platform managed \
+          --region us-central1 \
+          --allow-unauthenticated
+
+    - name: Get Backend URL
+      id: backend
+      run: |
+        echo "url=$(gcloud run services describe matching-arts-backend --platform managed --region us-central1 --format 'value(status.url)')" >> $GITHUB_OUTPUT
+
+    - name: Update Frontend Configuration
+      run: |
+        cd client-vite
+        # Update nginx.conf with the backend URL
+        sed -i "s|http://backend:8000|${{ steps.backend.outputs.url }}|g" nginx.conf
+
+    - name: Build and Push Frontend
+      run: |
+        cd client-vite
+        gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/matching-arts-frontend
+
+    - name: Deploy Frontend to Cloud Run
+      run: |
+        gcloud run deploy matching-arts-frontend \
+          --image gcr.io/${{ env.PROJECT_ID }}/matching-arts-frontend \
+          --platform managed \
+          --region us-central1 \
+          --allow-unauthenticated 
