@@ -104,7 +104,7 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image_ids: ratedImages.map(img => img.id),
+          artwork_id: ratedImages.map(img => img.id),
           target: ratedImages.map(img => img.rating),
           ...weights
         }),
