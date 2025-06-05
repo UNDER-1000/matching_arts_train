@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 import polars as pl
 import json
 from PIL import Image
@@ -24,13 +23,14 @@ class ColorsApi:
 		
 	def predict_batch(self, artwork_id: list[str]):
 		pil_images = [Image.open(f"{self.images_folder}{img}.jpg") for img in artwork_id]
-		cv2_images = []
-		for pil_image in pil_images:
-			cv2_images.append(cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV))
 		
-		results = np.empty((len(cv2_images), self.n_bins))
-		for i, image in enumerate(cv2_images):
-			h = (image[:, :, 0] / 180 * self.n_bins).astype(int)
+		results = np.empty((len(pil_images), self.n_bins))
+		for i, pil_image in enumerate(pil_images):
+			# Convert to HSV using PIL
+			hsv_image = pil_image.convert('HSV')
+			h_channel = np.array(hsv_image)[:, :, 0]
+			
+			h = (h_channel / 255 * self.n_bins).astype(int)
 			h = np.clip(h, 0, self.n_bins - 1)
 			
 			unique_values, counts = np.unique(h, return_counts=True)
@@ -47,9 +47,12 @@ class ColorsApi:
 			pil_image = Image.open(BytesIO(response.content))
 		else:
 			pil_image = Image.open(image_path)
-		cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
+			
+		# Convert to HSV using PIL
+		hsv_image = pil_image.convert('HSV')
+		h_channel = np.array(hsv_image)[:, :, 0]
 		
-		h = (cv_image[:, :, 0] / 180 * self.n_bins).astype(int)
+		h = (h_channel / 255 * self.n_bins).astype(int)
 		h = np.clip(h, 0, self.n_bins - 1)
 		
 		unique_values, counts = np.unique(h, return_counts=True)
