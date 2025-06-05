@@ -46,10 +46,11 @@ active_predictions_sessions: Dict[str, List[int]] = {}
 # --- CORS (for development, adjust in production) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (for development)
+    allow_origins=["http://localhost:5173", "https://matching-arts-train-1049010976779.europe-west1.run.app"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # --- Routes ---

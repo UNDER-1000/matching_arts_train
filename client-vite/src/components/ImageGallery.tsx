@@ -91,7 +91,7 @@ export default function ImageGallery({ images, preferences, thumbnailSize, onRat
                   </div>
                 )}
                 <img
-                  data-src={`/images/${img.name}`}
+                  data-src={`https://matching-arts-train-1049010976779.europe-west1.run.app/images/${img.name}`}
                   data-id={img.id}
                   alt={`Image ${img.id}`}
                   className={`w-full h-full object-cover transition-opacity duration-300 ${

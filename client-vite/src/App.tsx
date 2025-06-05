@@ -28,7 +28,7 @@ function App() {
   const loadImages = async () => {
     setStatus('Loading images metadata...');
     try {
-      const response = await fetch('/api/images');
+      const response = await fetch('https://matching-arts-train-1049010976779.europe-west1.run.app/api/images');
       if (!response.ok) {
         throw new Error('Failed to load images');
       }
@@ -98,7 +98,7 @@ function App() {
     setStatus('Submitting ratings...');
 
     try {
-      const response = await fetch('/predict', {
+      const response = await fetch('https://matching-arts-train-1049010976779.europe-west1.run.app/predict', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
