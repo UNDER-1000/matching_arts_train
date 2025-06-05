@@ -8,4 +8,5 @@ class Config:
 	paint_model_path = "data/linear_regression_paint.pkl"
 	colors_n_bins = 30
 	real_csv = 'data/combined_df_real.csv'
+	db_url = "postgresql+asyncpg://postgres:david770@localhost/matching_arts_db"
 	

@@ -1,66 +1,83 @@
 import uvicorn
 from fastapi import FastAPI
 from typing import List
-import csv
-import os
 from models import Artwork, UserInteraction, ArtworkResponse
 from src.logic import Logic
+from db import connect_db, close_db, get_connection
+from sqlalchemy import text, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from models_db import UserInteractionDB  # Add this ORM model
 
 app = FastAPI()
 main = Logic(True)
 
-# CSV persistence path
-INTERACTIONS_CSV = "data/interactions.csv"
+@app.on_event("startup")
+async def startup():
+    await connect_db()
+    async with get_connection() as conn:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_interactions (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                artwork_id TEXT NOT NULL,
+                action TEXT NOT NULL
+            )
+        """))
+        await conn.commit()
 
-# In-memory store (replace with DB in real implementation)
-interactions_db = {}
-
-def load_interactions():
-    if os.path.exists(INTERACTIONS_CSV):
-        with open(INTERACTIONS_CSV, newline='', mode='r') as csvfile:
-            reader = csv.reader(csvfile)
-            for user_id, artwork_id, action in reader:
-                if user_id not in interactions_db:
-                    interactions_db[user_id] = []
-                interactions_db[user_id].append((artwork_id, action))
-
-def save_interaction(user_id: str, artwork_id: str, action: str):
-    with open(INTERACTIONS_CSV, mode='a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow([user_id, artwork_id, action])
-
-# Load interactions on startup
-load_interactions()
+@app.on_event("shutdown")
+async def shutdown():
+    await close_db()
 
 @app.post("/add-artwork", status_code=200)
-def add_artwork(artwork: Artwork):
-    if main.add_artwork(artwork):
-        return 200
-    return 400
+async def add_artwork(artwork: Artwork):
+    result = await main.add_artwork(artwork)
+    return 200 if result else 400
 
-@app.post("/user-interaction", response_model=List[ArtworkResponse])
-def user_interaction(interaction: UserInteraction):
+@app.post("/user-interaction", response_model=List[str])
+async def user_interaction(interaction: UserInteraction):
     user_id = interaction.user_id
     artwork_id = interaction.artwork_id
     action = interaction.action
 
-    # Initialize user entry if not present
-    if user_id not in interactions_db:
-        interactions_db[user_id] = []
+    async with get_connection() as session:
+        # Check if interaction already exists
+        stmt = select(UserInteractionDB).where(
+            UserInteractionDB.user_id == user_id,
+            UserInteractionDB.artwork_id == artwork_id,
+            UserInteractionDB.action == action
+        )
+        result = await session.execute(stmt)
+        existing = result.scalar_one_or_none()
 
-    # Check if this interaction already exists
-    if (artwork_id, action) not in interactions_db[user_id]:
-        interactions_db[user_id].append((artwork_id, action))
-        save_interaction(user_id, artwork_id, action)  # Save only if new
+        # Save new interaction if not exists
+        if not existing:
+            new_record = UserInteractionDB(
+                user_id=user_id,
+                artwork_id=artwork_id,
+                action=action
+            )
+            session.add(new_record)
+            await session.commit()
 
-    # Predict recommendations
-    sorted_ids, _, _ = main.predict(
-        artwork_id=[art_id for art_id, _ in interactions_db[user_id]],
-        target=[1 if act == 'like' else 0 for _, act in interactions_db[user_id]],
-        session_id=""
-    )
-    print(interactions_db)
-    return [ArtworkResponse(artwork_id=id) for id in sorted_ids[:10]]
+        # Fetch all interactions for this user
+        stmt_all = select(UserInteractionDB).where(
+            UserInteractionDB.user_id == user_id
+        )
+        result_all = await session.execute(stmt_all)
+        interactions = result_all.scalars().all()
+
+        # Prepare input for prediction
+        artwork_ids = [i.artwork_id for i in interactions]
+        targets = [1 if i.action == "like" else 0 for i in interactions]
+
+        sorted_ids, _, _ = await main.predict(
+            artwork_id=artwork_ids,
+            target=targets,
+            session_id=""
+        )
+
+    return [id for id in sorted_ids[:10]]
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
