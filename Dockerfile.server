@@ -12,6 +12,9 @@ RUN mkdir -p data/data static templates
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the entire data directory
+COPY data/ data/
+
 # Copy the rest of the application
 COPY . .
 
