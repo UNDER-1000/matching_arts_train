@@ -3,6 +3,7 @@ import polars as pl
 from utils.embed_model import ClipEmbed
 import json
 from src.config import Config
+from tqdm import tqdm
 
 
 class EmbeddingsApi:
@@ -18,7 +19,7 @@ class EmbeddingsApi:
 	def predict_batch(self, artwork_id):
 		all_embeddings = []
 		
-		for i in range(0, len(artwork_id), self.batch_size):
+		for i in tqdm(range(0, len(artwork_id), self.batch_size), desc="Predicting embeddings"):
 			batch_images = artwork_id[i:i + self.batch_size]
 			batch_images = [f"{self.images_folder}{img}.jpg" for img in batch_images]
 			

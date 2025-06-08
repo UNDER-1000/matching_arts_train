@@ -6,6 +6,7 @@ from PIL import Image
 from src.config import Config
 import requests
 from io import BytesIO
+from tqdm import tqdm
 
 class ColorsApi:
 	
@@ -23,13 +24,16 @@ class ColorsApi:
 		return df
 		
 	def predict_batch(self, artwork_id: list[str]):
-		pil_images = [Image.open(f"{self.images_folder}{img}.jpg") for img in artwork_id]
+		pil_images = [Image.open(f"{self.images_folder}
+		{img}.jpg") for img in artwork_id]
 		cv2_images = []
-		for pil_image in pil_images:
+		for pil_image in tqdm(pil_images, desc="Processing images for color extraction"):
+			if pil_image.mode != 'RGB':
+				pil_image = pil_image.convert('RGB')
 			cv2_images.append(cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV))
 		
 		results = np.empty((len(cv2_images), self.n_bins))
-		for i, image in enumerate(cv2_images):
+		for i, image in tqdm(enumerate(cv2_images), desc="Extracting color histograms"):
 			h = (image[:, :, 0] / 180 * self.n_bins).astype(int)
 			h = np.clip(h, 0, self.n_bins - 1)
 			

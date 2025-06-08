@@ -2,6 +2,7 @@ import numpy as np
 import polars as pl
 import joblib
 from src.config import Config
+from tqdm import tqdm
 
 
 class ClassifiersApi:
@@ -15,7 +16,7 @@ class ClassifiersApi:
 	
 	def predict_all(self, embeddings: np.ndarray, artwork_id: list[str]):
 		results = np.empty((len(embeddings), len(self.classes)))
-		for i, j in enumerate(self.classes):
+		for i, j in tqdm(enumerate(self.classes), desc="Predicting classes"):
 			results[:, i] = self.models[j].predict(embeddings).reshape(-1)
 		df = pl.DataFrame({"artwork_id": artwork_id, **{self.classes[i]: results[:, i] for i in range(len(self.classes))}})
 		# df.write_csv(self.csv_name)
