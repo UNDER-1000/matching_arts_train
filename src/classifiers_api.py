@@ -30,6 +30,6 @@ class ClassifiersApi:
 	
 	def predict_from_embedding(self, embedding: list[float]) -> dict:
 		embedding_np = np.array(embedding).reshape(1, -1)
-		predictions = {cls: int(self.models[cls].predict(embedding_np)[0]) for cls in self.classes}
+		predictions = {cls: float(self.models[cls].predict(embedding_np)[0]) for cls in self.classes}
 		return predictions
 

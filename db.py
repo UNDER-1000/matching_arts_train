@@ -5,7 +5,7 @@ from src.config import Config
 
 DATABASE_URL = os.getenv("DATABASE_URL", Config.db_url)
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=True, connect_args={"statement_cache_size": 0})
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 

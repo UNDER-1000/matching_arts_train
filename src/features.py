@@ -9,9 +9,10 @@ import os
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, not_, func
+from sqlalchemy import select, not_
 from models_db import ArtworkDB
 from models import Artwork
+from db import engine
 
 class Features:
     def __init__(self, real_api=False):
@@ -21,7 +22,7 @@ class Features:
         self.colors_api = ColorsApi()
 
         if real_api:
-            self.engine = create_async_engine(Config.db_url)
+            self.engine = engine
             self.AsyncSessionLocal = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
         else:
             self.csv_name = Config.csv_name
@@ -40,28 +41,73 @@ class Features:
     async def get_ids_np(self, artwork_id):
         if self.real_api:
             async with self.AsyncSessionLocal() as session:
-                result = await session.execute(select(ArtworkDB).where(ArtworkDB.artwork_id.in_(artwork_id)))
-                artworks = result.scalars().all()
+                result = await session.execute(
+                    select(
+                        ArtworkDB.embeddings,
+                        ArtworkDB.colors,
+                        ArtworkDB.abstract,
+                        ArtworkDB.noisy,
+                        ArtworkDB.paint
+                    ).where(ArtworkDB.artwork_id.in_(artwork_id))
+                )
+                rows = result.all()
+
+            embeddings = np.array([row[0] for row in rows])
+            colors = np.array([row[1] for row in rows])
+            abstract = np.array([row[2] for row in rows])
+            noisy = np.array([row[3] for row in rows])
+            paint = np.array([row[4] for row in rows])
+            classifiers = np.stack([abstract, noisy, paint], axis=1)
+
+            return dict(
+                embeddings=embeddings,
+                colors=colors,
+                classifiers=classifiers,
+                abstract=abstract,
+                noisy=noisy,
+                paint=paint
+            )
         else:
             selected_rows = self.combined_df.filter(pl.col("artwork_id").is_in(artwork_id))
             return self._extract_np_from_rows(selected_rows)
 
-        return self._extract_np_from_db(artworks)
-
     async def get_not_ids_np(self, artwork_id):
         if self.real_api:
             async with self.AsyncSessionLocal() as session:
-                result = await session.execute(select(ArtworkDB).where(not_(ArtworkDB.artwork_id.in_(artwork_id))))
-                artworks = result.scalars().all()
+                result = await session.execute(
+                    select(
+                        ArtworkDB.artwork_id,
+                        ArtworkDB.embeddings,
+                        ArtworkDB.colors,
+                        ArtworkDB.abstract,
+                        ArtworkDB.noisy,
+                        ArtworkDB.paint
+                    ).where(not_(ArtworkDB.artwork_id.in_(artwork_id)))
+                )
+                rows = result.all()
+
+            ids = np.array([row[0] for row in rows])
+            embeddings = np.array([row[1] for row in rows])
+            colors = np.array([row[2] for row in rows])
+            abstract = np.array([row[3] for row in rows])
+            noisy = np.array([row[4] for row in rows])
+            paint = np.array([row[5] for row in rows])
+            classifiers = np.stack([abstract, noisy, paint], axis=1)
+
+            return dict(
+                ids=ids,
+                embeddings=embeddings,
+                colors=colors,
+                classifiers=classifiers,
+                abstract=abstract,
+                noisy=noisy,
+                paint=paint
+            )
         else:
             selected_rows = self.combined_df.filter(~pl.col("artwork_id").is_in(artwork_id))
             data = self._extract_np_from_rows(selected_rows)
             data["ids"] = np.array(selected_rows['artwork_id'])
             return data
-
-        data = self._extract_np_from_db(artworks)
-        data["ids"] = np.array([a.artwork_id for a in artworks])
-        return data
 
     async def get_all_ids_np(self):
         if self.real_api:
@@ -95,19 +141,6 @@ class Features:
             abstract=np.array(rows['abstract']),
             noisy=np.array(rows['noisy']),
             paint=np.array(rows['paint'])
-        )
-
-    def _extract_np_from_db(self, artworks):
-        embeddings = np.array([a.embeddings for a in artworks])
-        colors = np.array([a.colors for a in artworks])
-        classifiers = np.array([[a.abstract, a.noisy, a.paint] for a in artworks])
-        return dict(
-            embeddings=embeddings,
-            colors=colors,
-            classifiers=classifiers,
-            abstract=np.array([a.abstract for a in artworks]),
-            noisy=np.array([a.noisy for a in artworks]),
-            paint=np.array([a.paint for a in artworks])
         )
 
     def read_images_ids(self):
@@ -154,6 +187,8 @@ class Features:
                     noisy=float(classifier_preds['noisy']),
                     paint=float(classifier_preds['paint']),
                 )
+                print(f"classifier_preds={classifier_preds}")
+                print(f"classifiers from new_artwork={new_artwork.abstract}, {new_artwork.noisy}, {new_artwork.paint}")
                 session.add(new_artwork)
             await session.commit()
         return True

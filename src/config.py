@@ -8,5 +8,6 @@ class Config:
 	paint_model_path = "data/linear_regression_paint.pkl"
 	colors_n_bins = 30
 	real_csv = 'data/combined_df_real.csv'
-	db_url = "postgresql+asyncpg://postgres:david770@localhost/matching_arts_db"
+	supabase_password = "2Hk7nesuYJs1gl89"
+	db_url = f"postgresql+asyncpg://postgres.mjrhmeyzwfttizwctiaf:{supabase_password}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
 	

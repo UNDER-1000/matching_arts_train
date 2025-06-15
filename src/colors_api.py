@@ -24,8 +24,7 @@ class ColorsApi:
 		return df
 		
 	def predict_batch(self, artwork_id: list[str]):
-		pil_images = [Image.open(f"{self.images_folder}
-		{img}.jpg") for img in artwork_id]
+		pil_images = [Image.open(f"{self.images_folder}/{img}.jpg") for img in artwork_id]
 		cv2_images = []
 		for pil_image in tqdm(pil_images, desc="Processing images for color extraction"):
 			if pil_image.mode != 'RGB':

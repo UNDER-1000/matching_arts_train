@@ -130,34 +130,7 @@ if __name__ == "__main__":
 
     # 1. Populate initial artworks by sending individual requests from the client
     # This now scans your local 'data/data' folder and sends each artwork.
-    all_artwork_ids_in_system = populate_artworks_from_folder(limit=2)
-
-    # if not all_artwork_ids_in_system:
-    #     print("\nNo artworks were added. Cannot proceed with interactions.")
-    #     print("Ensure 'data/data' folder exists with images and FastAPI app is running.")
-    # else:
-    #     # 2. Add a custom artwork (separate from the loaded images)
-    #     custom_artwork_id = "custom-painting-456"
-    #     custom_artwork = {
-    #         "artwork_id": custom_artwork_id,
-    #         "artist_id": "artist-JaneDoe",
-    #         "artist_name": "Jane Doe",
-    #         "artwork_name": "Abstract Dreams",
-    #         "images": ["https://placehold.co/600x400/2980B9/FFFFFF?text=Abstract+Dreams"],
-    #         "description": "A dreamlike abstract composition.",
-    #         "category": "Abstract",
-    #         "properties": {"creation_method": "digital", "inspiration": "dreams"},
-    #         "media": "Canvas Print",
-    #         "medium": "Acrylic",
-    #         "size": "30x40 inches",
-    #         "price": 850.00,
-    #         "styles": ["Abstract Expressionism"],
-    #         "subject": "Concepts"
-    #     }
-    #     add_artwork(custom_artwork)
-
-        # # Add the custom artwork ID to our list for potential interaction
-        # all_artwork_ids_in_system.append(custom_artwork_id)
+    all_artwork_ids_in_system = populate_artworks_from_folder(limit=15)
 
     # 3. Simulate user interactions
     user1_id = "user_alpha"
