@@ -15,119 +15,86 @@ from models import Artwork
 from db import engine
 
 class Features:
-    def __init__(self, real_api=False):
-        self.real_api = real_api
+    def __init__(self):
         self.embeddings_api = EmbeddingsApi()
         self.classifier_api = ClassifiersApi()
         self.colors_api = ColorsApi()
 
-        if real_api:
-            self.engine = engine
-            self.AsyncSessionLocal = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
-        else:
-            self.csv_name = Config.csv_name
-            self.artwork_id = self.read_images_ids()
-            if Config.restart:
-                colors_df = self.colors_api.pp(artwork_id=self.artwork_id)
-                embeddings_df = self.embeddings_api.pp(artwork_id=self.artwork_id)
-                embeddings = np.array([json.loads(e) for e in embeddings_df['embeddings']])
-                classifier_df = self.classifier_api.pp(embeddings=embeddings, artwork_id=self.artwork_id)
-                self.combined_df = pl.concat([embeddings_df, colors_df.drop("artwork_id"), classifier_df.drop("artwork_id")], how="horizontal")
-                self.combined_df.write_csv(self.csv_name)
-            else:
-                self.combined_df = pl.read_csv(self.csv_name)
-            print(f"{len(self.combined_df)=}")
+        self.engine = engine
+        self.AsyncSessionLocal = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
     async def get_ids_np(self, artwork_id):
-        if self.real_api:
-            async with self.AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(
-                        ArtworkDB.embeddings,
-                        ArtworkDB.colors,
-                        ArtworkDB.abstract,
-                        ArtworkDB.noisy,
-                        ArtworkDB.paint
-                    ).where(ArtworkDB.artwork_id.in_(artwork_id))
-                )
-                rows = result.all()
-
-            embeddings = np.array([row[0] for row in rows])
-            colors = np.array([row[1] for row in rows])
-            abstract = np.array([row[2] for row in rows])
-            noisy = np.array([row[3] for row in rows])
-            paint = np.array([row[4] for row in rows])
-            classifiers = np.stack([abstract, noisy, paint], axis=1)
-
-            return dict(
-                embeddings=embeddings,
-                colors=colors,
-                classifiers=classifiers,
-                abstract=abstract,
-                noisy=noisy,
-                paint=paint
+        async with self.AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(
+                    ArtworkDB.embeddings,
+                    ArtworkDB.colors,
+                    ArtworkDB.abstract,
+                    ArtworkDB.noisy,
+                    ArtworkDB.paint
+                ).where(ArtworkDB.artwork_id.in_(artwork_id))
             )
-        else:
-            selected_rows = self.combined_df.filter(pl.col("artwork_id").is_in(artwork_id))
-            return self._extract_np_from_rows(selected_rows)
+            rows = result.all()
+
+        embeddings = np.array([row[0] for row in rows])
+        colors = np.array([row[1] for row in rows])
+        abstract = np.array([row[2] for row in rows])
+        noisy = np.array([row[3] for row in rows])
+        paint = np.array([row[4] for row in rows])
+        classifiers = np.stack([abstract, noisy, paint], axis=1)
+
+        return dict(
+            embeddings=embeddings,
+            colors=colors,
+            classifiers=classifiers,
+            abstract=abstract,
+            noisy=noisy,
+            paint=paint
+        )
 
     async def get_not_ids_np(self, artwork_id):
-        if self.real_api:
-            async with self.AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(
-                        ArtworkDB.artwork_id,
-                        ArtworkDB.embeddings,
-                        ArtworkDB.colors,
-                        ArtworkDB.abstract,
-                        ArtworkDB.noisy,
-                        ArtworkDB.paint
-                    ).where(not_(ArtworkDB.artwork_id.in_(artwork_id)))
-                )
-                rows = result.all()
-
-            ids = np.array([row[0] for row in rows])
-            embeddings = np.array([row[1] for row in rows])
-            colors = np.array([row[2] for row in rows])
-            abstract = np.array([row[3] for row in rows])
-            noisy = np.array([row[4] for row in rows])
-            paint = np.array([row[5] for row in rows])
-            classifiers = np.stack([abstract, noisy, paint], axis=1)
-
-            return dict(
-                ids=ids,
-                embeddings=embeddings,
-                colors=colors,
-                classifiers=classifiers,
-                abstract=abstract,
-                noisy=noisy,
-                paint=paint
+        async with self.AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(
+                    ArtworkDB.artwork_id,
+                    ArtworkDB.embeddings,
+                    ArtworkDB.colors,
+                    ArtworkDB.abstract,
+                    ArtworkDB.noisy,
+                    ArtworkDB.paint
+                ).where(not_(ArtworkDB.artwork_id.in_(artwork_id)))
             )
-        else:
-            selected_rows = self.combined_df.filter(~pl.col("artwork_id").is_in(artwork_id))
-            data = self._extract_np_from_rows(selected_rows)
-            data["ids"] = np.array(selected_rows['artwork_id'])
-            return data
+            rows = result.all()
+
+        ids = np.array([row[0] for row in rows])
+        embeddings = np.array([row[1] for row in rows])
+        colors = np.array([row[2] for row in rows])
+        abstract = np.array([row[3] for row in rows])
+        noisy = np.array([row[4] for row in rows])
+        paint = np.array([row[5] for row in rows])
+        classifiers = np.stack([abstract, noisy, paint], axis=1)
+
+        return dict(
+            ids=ids,
+            embeddings=embeddings,
+            colors=colors,
+            classifiers=classifiers,
+            abstract=abstract,
+            noisy=noisy,
+            paint=paint
+        )
+
 
     async def get_all_ids_np(self):
-        if self.real_api:
-            async with self.AsyncSessionLocal() as session:
-                result = await session.execute(select(ArtworkDB.artwork_id))
-                return np.array([row[0] for row in result.all()])
-        else:
-            return np.array(self.combined_df['artwork_id'])
+        async with self.AsyncSessionLocal() as session:
+            result = await session.execute(select(ArtworkDB.artwork_id))
+            return np.array([row[0] for row in result.all()])
 
     async def get_pred_likes(self, artwork_id, sorted_indexes):
-        if self.real_api:
-            async with self.AsyncSessionLocal() as session:
-                result = await session.execute(select(ArtworkDB.artwork_id).where(not_(ArtworkDB.artwork_id.in_(artwork_id))))
-                artwork_ids = [row[0] for row in result.all()]
-                sorted_artwork_id = [artwork_ids[i] for i in sorted_indexes]
-                return sorted_artwork_id
-        else:
-            selected_rows = self.combined_df.filter(~pl.col("artwork_id").is_in(artwork_id))
-            image_id_list = selected_rows["artwork_id"].to_list()
-            sorted_artwork_id = [image_id_list[i] for i in sorted_indexes]
+        async with self.AsyncSessionLocal() as session:
+            result = await session.execute(select(ArtworkDB.artwork_id).where(not_(ArtworkDB.artwork_id.in_(artwork_id))))
+            artwork_ids = [row[0] for row in result.all()]
+            sorted_artwork_id = [artwork_ids[i] for i in sorted_indexes]
             return sorted_artwork_id
 
     def _extract_np_from_rows(self, rows):
@@ -146,10 +113,7 @@ class Features:
     def read_images_ids(self):
         return [img[:-4] for img in os.listdir(Config.images_folder) if img.endswith('.jpg')]
 
-    async def add_artwork(self, artwork: Artwork):
-        if not self.real_api:
-            raise RuntimeError("Can only add artwork to DB in real_api=True mode.")
-        
+    async def add_artwork(self, artwork: Artwork):        
         async with self.AsyncSessionLocal() as session:
             async with session.begin():
                 result = await session.get(ArtworkDB, artwork.artwork_id)

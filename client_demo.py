@@ -8,7 +8,7 @@ import random
 
 # --- Configuration ---
 BASE_URL = "http://localhost:8000"
-IMAGE_FOLDER_CLIENT = "data/data" # Path to your image folder relative to where client runs
+IMAGE_FOLDER_CLIENT = "https://storage.googleapis.com/image-matcher/artworks" # Path to your image folder relative to where client runs
 VALID_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp')
 
 # --- Helper Functions for API Interaction ---
@@ -71,53 +71,55 @@ def populate_artworks_from_folder(limit: int = 15):
     loaded_ids = []
     count = 0
 
-    if not os.path.exists(IMAGE_FOLDER_CLIENT):
-        print(f"Error: Image folder '{IMAGE_FOLDER_CLIENT}' not found.")
-        return []
+    # if not os.path.exists(IMAGE_FOLDER_CLIENT):
+    #     print(f"Error: Image folder '{IMAGE_FOLDER_CLIENT}' not found.")
+    #     return []
 
-    for root, _, files in os.walk(IMAGE_FOLDER_CLIENT):
-        for filename in sorted(files):
-            if filename.lower().endswith(VALID_EXTENSIONS):
-                if count >= limit:
-                    break
-
-                # Generate a unique ID (can be based on filename or a UUID)
-                artwork_id = os.path.splitext(filename)[0] + "-" + str(uuid.uuid4())[:4]
-                artwork_name = os.path.splitext(filename)[0].replace('_', ' ').title()
-                
-                # Consistent (non-'garbage') dummy data
-                artist_name = f"Artist_{random.choice(['A', 'B', 'C'])}"
-                description = f"A beautiful piece named '{artwork_name}' by {artist_name}, digitally imported."
-                category = random.choice(["Abstract", "Portrait", "Landscape", "Still Life"])
-                style = random.choice(["Modern", "Impressionist", "Surreal", "Realistic"])
-                subject = random.choice(["Nature", "People", "Objects", "Emotions"])
-                
-                artwork_data = {
-                    "artwork_id": artwork_id,
-                    "artist_id": f"artst-{hash(artist_name) % 1000}", # Simple hash for artist ID
-                    "artist_name": artist_name,
-                    "artwork_name": artwork_name,
-                    # Assuming /images endpoint on server serves images from data/data
-                    "images": [f"{IMAGE_FOLDER_CLIENT}/{filename}"], 
-                    "description": description,
-                    "category": category,
-                    "properties": {"source": "local_folder_import", "client_generated": True},
-                    "media": "Digital File",
-                    "medium": "Mixed Media",
-                    "size": "Digital",
-                    "price": round(random.uniform(100.0, 5000.0), 2), # Random price
-                    "styles": [style],
-                    "subject": subject
-                }
-
-                if add_artwork(artwork_data): # Use the existing add_artwork helper to send
-                    loaded_ids.append(artwork_id)
-                    count += 1
-                
-                time.sleep(0.1) # Small delay to not overwhelm the server
-
+    # for root, _, files in os.walk(IMAGE_FOLDER_CLIENT):
+    for idx in range(1, limit + 1):
+        filename = f"{idx}.jpg"  # Simulating artwork files
+    # for filename in sorted(files):
+        if filename.lower().endswith(VALID_EXTENSIONS):
             if count >= limit:
                 break
+
+            # Generate a unique ID (can be based on filename or a UUID)
+            artwork_id = os.path.splitext(filename)[0] + "-" + str(uuid.uuid4())[:4]
+            artwork_name = os.path.splitext(filename)[0].replace('_', ' ').title()
+            
+            # Consistent (non-'garbage') dummy data
+            artist_name = f"Artist_{random.choice(['A', 'B', 'C'])}"
+            description = f"A beautiful piece named '{artwork_name}' by {artist_name}, digitally imported."
+            category = random.choice(["Abstract", "Portrait", "Landscape", "Still Life"])
+            style = random.choice(["Modern", "Impressionist", "Surreal", "Realistic"])
+            subject = random.choice(["Nature", "People", "Objects", "Emotions"])
+            
+            artwork_data = {
+                "artwork_id": artwork_id,
+                "artist_id": f"artst-{hash(artist_name) % 1000}", # Simple hash for artist ID
+                "artist_name": artist_name,
+                "artwork_name": artwork_name,
+                # Assuming /images endpoint on server serves images from data/data
+                "images": [f"{IMAGE_FOLDER_CLIENT}/{filename}"], 
+                "description": description,
+                "category": category,
+                "properties": {"source": "local_folder_import", "client_generated": True},
+                "media": "Digital File",
+                "medium": "Mixed Media",
+                "size": "Digital",
+                "price": round(random.uniform(100.0, 5000.0), 2), # Random price
+                "styles": [style],
+                "subject": subject
+            }
+
+            if add_artwork(artwork_data): # Use the existing add_artwork helper to send
+                loaded_ids.append(artwork_id)
+                count += 1
+            
+            time.sleep(0.1) # Small delay to not overwhelm the server
+
+            # if count >= limit:
+            #     break
         if count >= limit:
             break
             
