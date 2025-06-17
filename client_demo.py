@@ -19,6 +19,7 @@ def add_artwork(artwork_data: dict):
     """
     print(f"\n--- Adding artwork: {artwork_data.get('artwork_name')} ---")
     url = f"{BASE_URL}/add-artwork"
+    response = None
     try:
         response = requests.post(url, json=artwork_data)
         response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
