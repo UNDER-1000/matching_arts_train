@@ -61,12 +61,12 @@ async def user_interaction(interaction: UserInteraction):
         artwork_ids = [i.artwork_id for i in interactions]
         targets = [1 if i.action == "like" else 0 for i in interactions]
 
-        sorted_ids, _, _ = await main.predict(
+        sorted_ids = await main.predict(
             artwork_id=artwork_ids,
             target=targets
         )
 
-    return [id for id in sorted_ids[:10]]
+    return [id for id in sorted_ids]
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

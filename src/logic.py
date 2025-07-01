@@ -1,9 +1,9 @@
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-import csv
-import os
-import json
-from typing import List, Dict
+from sklearn.cluster import SpectralClustering
+from collections import defaultdict
+import  heapq
+from typing import List
 from src.features import Features
 from models import Artwork
 
@@ -21,9 +21,34 @@ class Logic:
         return np.mean(data[key].astype(float), axis=0) if data[key].size > 0 else np.zeros(default_shape)
 
     def score_scalar_feature(self, candidates, liked, disliked, name: str):
-        liked_val = np.mean(liked[name].astype(float)) if liked and name in liked and len(liked[name]) > 0 else 0.0
-        disliked_val = np.mean(disliked[name].astype(float)) if disliked and name in disliked and len(disliked[name]) > 0 else 0.0
-        return (np.abs(candidates[name].astype(float) - liked_val) - np.abs(candidates[name].astype(float) - disliked_val)).reshape(-1, 1)
+        candidates_col = candidates[name].astype(float)
+
+        has_liked = liked is not None and name in liked and len(liked[name]) > 0
+        has_disliked = disliked is not None and name in disliked and len(disliked[name]) > 0
+
+        if has_liked:
+            liked_val = np.mean(liked[name].astype(float))
+        if has_disliked:
+            disliked_val = np.mean(disliked[name].astype(float))
+
+        if has_liked and has_disliked:
+            score = np.abs(candidates_col - disliked_val) - np.abs(candidates_col - liked_val)
+        elif has_liked:
+            score = -np.abs(candidates_col - liked_val)  # closer to liked is better
+        elif has_disliked:
+            score = np.abs(candidates_col - disliked_val)  # farther from disliked is better
+        else:
+            score = np.zeros_like(candidates_col)  # no signal
+
+		# Normalize to [-1, 1]
+        score_min = score.min()
+        score_max = score.max()
+        if score_max != score_min:
+            normalized_score = 2 * (score - score_min) / (score_max - score_min) - 1
+        else:
+            normalized_score = np.zeros_like(score)
+
+        return normalized_score.reshape(-1, 1)
 
     async def predict(self, artwork_id: List[int], target: List[int], embedding_weight: float = 0.4, color_weight: float = 0.3, abstract_weight: float = 0.1, noisy_weight: float = 0.1, paint_weight: float = 0.1):
         liked_ids = [id for id, label in zip(artwork_id, target) if label == 1]
@@ -53,17 +78,34 @@ class Logic:
         overall_score = (embedding_weight * emb_score + color_weight * col_score + abstract_weight * abstract_score + paint_weight * paint_score + noisy_weight * noisy_score)
         sorted_indexes = np.argsort(overall_score)[::-1]
 
-        score_dict = {
-            'overall': overall_score,
-            'embeddings': emb_score,
-            'colors': col_score,
-            'abstract': abstract_score,
-            'paint': paint_score,
-            'noisy': noisy_score
-        }
+        top_30_indexes = sorted_indexes[:30]
+        top_30_embeddings = candidates['embeddings'][top_30_indexes]
 
-        return await self.features.get_pred_likes(artwork_id=artwork_id, sorted_indexes=sorted_indexes), overall_score[sorted_indexes], score_dict
+        n_clusters = min(5, len(top_30_embeddings))
+        clustering = SpectralClustering(n_clusters=n_clusters, affinity='nearest_neighbors', assign_labels='kmeans', random_state=42)
+        labels = clustering.fit_predict(top_30_embeddings)
 
+        clusters = defaultdict(list)
+        for idx, label in zip(top_30_indexes, labels):
+            clusters[label].append(idx)
+
+        selected_indexes = []
+        for cluster in clusters.values():
+            top_in_cluster = heapq.nlargest(2, cluster, key=lambda idx: overall_score[idx])
+            selected_indexes.extend(top_in_cluster)
+
+        if len(selected_indexes) < 10:
+            extras = [idx for idx in sorted_indexes if idx not in selected_indexes]
+            selected_indexes += extras[:10 - len(selected_indexes)]
+
+        selected_indexes = sorted(selected_indexes, key=lambda idx: overall_score[idx], reverse=True)
+
+        # Prepare details for the predicted top 10 images
+        top_predictions = []
+        for idx in selected_indexes:
+            top_predictions.append(candidates['ids'][idx])
+
+        return top_predictions
 
 if __name__ == '__main__':
 	l = Logic()
