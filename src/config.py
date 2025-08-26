@@ -3,6 +3,6 @@ class Config:
 	abstract_model_path = "data/linear_regression_abstract.pkl"
 	paint_model_path = "data/linear_regression_paint.pkl"
 	colors_n_bins = 30
-	supabase_password = "2Hk7nesuYJs1gl89"
-	db_url = f"postgresql+asyncpg://postgres.mjrhmeyzwfttizwctiaf:{supabase_password}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+	supabase_password = "&6a*bFbMm$Ncb#q"
+	db_url = f"postgresql+asyncpg://postgres.lkycsngpgfshrbnuviki:{supabase_password}@aws-1-eu-north-1.pooler.supabase.com:6543/postgres"
 	
