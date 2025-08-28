@@ -6,12 +6,11 @@ from src.logic import Logic
 from src.walls_logic import PredictionWalls
 from db import connect_db, close_db, get_connection
 from sqlalchemy import text, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from models_db import UserInteractionDB, WallSelectionDB
 
 app = FastAPI()
-artwork_recommender = Logic()
-walls_recommender = PredictionWalls()
+artwork_recommender = None
+walls_recommender = None
 
 @app.on_event("startup")
 async def startup():
@@ -21,9 +20,22 @@ async def startup():
 async def shutdown():
     await close_db()
 
+def get_artwork_recommender() -> Logic:
+    global artwork_recommender
+    if artwork_recommender is None:
+        artwork_recommender = Logic()  # expensive init
+    return artwork_recommender
+
+def get_walls_recommender() -> PredictionWalls:
+    global walls_recommender
+    if walls_recommender is None:
+        walls_recommender = PredictionWalls()  # expensive init
+    return walls_recommender
+
 @app.post("/add-artwork", status_code=200)
 async def add_artwork(artwork: Artwork):
-    result = await artwork_recommender.add_artwork(artwork)
+    recommender = get_artwork_recommender()
+    result = await recommender.add_artwork(artwork)
     return 200 if result else 400
 
 async def record_artwork_feedback(user_id: str, artwork_id: str, action: str) -> List[str]:
@@ -58,7 +70,8 @@ async def record_artwork_feedback(user_id: str, artwork_id: str, action: str) ->
         artwork_ids = [i.artwork_id for i in interactions]
         targets = [1 if i.action == "like" else 0 for i in interactions]
 
-        sorted_ids = await artwork_recommender.predict(
+        recommender = get_artwork_recommender()
+        sorted_ids = await recommender.predict(
             artwork_id=artwork_ids,
             target=targets
         )
@@ -74,7 +87,8 @@ async def user_interaction(interaction: UserInteraction):
     if action == "like" or action == "dislike":
         return await record_artwork_feedback(user_id, artwork_id, action)
     elif action == "wall":
-        return walls_recommender.predict(artwork_id, k=10)[0]
+        recommender = get_walls_recommender()
+        return recommender.predict(artwork_id, k=10)[0]
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
