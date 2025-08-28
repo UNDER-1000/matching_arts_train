@@ -6,6 +6,8 @@ from datetime import datetime
 import time
 import random
 
+from src.config import Config
+
 # --- Configuration ---
 BASE_URL = "http://localhost:8000"
 IMAGE_FOLDER_CLIENT = "https://storage.googleapis.com/image-matcher/artworks" # Path to your image folder relative to where client runs
@@ -127,6 +129,33 @@ def populate_artworks_from_folder(limit: int = 15):
     print(f"\nSuccessfully populated {len(loaded_ids)} artworks via individual API calls.")
     return loaded_ids
 
+def wall_interaction(user_id: str, wall_index: int):
+    """
+    Calls the /user-interaction endpoint with action='wall'
+    to simulate a wall selection.
+    """
+    print(f"\n--- User '{user_id}' requesting wall '{wall_index}' ---")
+    url = f"{BASE_URL}/user-interaction"
+    interaction_data = {
+        "user_id": user_id,
+        "artwork_id": f"{Config.walls_url}{wall_index}.jpg",  # wall index sent as artwork_id
+        "action": "wall",
+        "timestamp": datetime.now().isoformat()
+    }
+    try:
+        response = requests.post(url, json=interaction_data)
+        response.raise_for_status()
+        data = response.json()
+        print("Wall recommendations received:")
+        print(json.dumps(data, indent=2))
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error during wall interaction: {e}")
+        if response is not None:
+            print(f"Response status: {response.status_code}")
+            print(f"Response detail: {response.text}")
+        return []
+
 # --- Demo Client Logic ---
 if __name__ == "__main__":
     print("Starting FastAPI Demo Client...")
@@ -157,5 +186,11 @@ if __name__ == "__main__":
         # User 2 likes another artwork
         another_artwork_for_user2 = random.choice(all_artwork_ids_in_system[1])
         user_interaction(user2_id, another_artwork_for_user2, "like")
+
+        # 3. Simulate wall selection (random wall index 1–100)
+    wall_index = random.randint(1, 100)
+    wall_result = wall_interaction(user1_id, wall_index)
+    if wall_result:
+        print(f"Recommended artworks for wall {wall_index}: {wall_result}")
 
     print("\nDemo client finished.")

@@ -1,11 +1,8 @@
-import pickle
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import itertools
 
 import os
 import sys
@@ -92,22 +89,7 @@ def load_model(input_dim, path="wall_art_model.pt"):
     model = WallArtClassifier(input_dim=input_dim)
     model.load_state_dict(torch.load(path))
     model.eval()
-    return model
-
-def display_losses(train_losses, val_losses, title="Training and Validation Losses", save_path="loss_curve.png"):
-    plt.figure(figsize=(10, 5))
-    plt.plot(train_losses, label='Train Loss', color='blue')
-    plt.plot(val_losses, label='Validation Loss', color='orange')
-    plt.title(title)
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid()
-    # Save graph to file
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-
-    print(f"Loss graph saved to {save_path}")
-    
+    return model    
 
 def main():
     embeddings_pairs, labels = create_embedding_pairs_from_files(
