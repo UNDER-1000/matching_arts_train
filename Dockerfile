@@ -4,8 +4,7 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-
-# Install OS dependencies (includes fix for OpenCV error)
+# Install OS dependencies (needed for OpenCV etc.)
 RUN apt-get update && apt-get install -y \
     git \
     libgl1 \
@@ -15,17 +14,16 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch torchvision
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-# Force reinstall the correct version
-RUN pip install --no-cache-dir scikit-learn==1.6.1 --force-reinstall
 
+# Pre-download CLIP model (optional, prevents downloading at runtime)
 RUN python3 -c "import clip; clip.load('ViT-L/14@336px', device='cpu')"
 
 # Copy source code
 COPY . .
 
-# Set environment variables (optional)
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
 
 # Expose FastAPI port
