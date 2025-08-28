@@ -19,4 +19,5 @@ asyncpg
 pgvector[sqlalchemy]==0.2.3
 opencv-python
 aiohttp==3.9.5
+albumentations==1.4.14
 git+https://github.com/openai/CLIP.git 
