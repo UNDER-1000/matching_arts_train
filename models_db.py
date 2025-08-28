@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, JSON, Text, Float, select
+from sqlalchemy import Column, String, Integer, JSON, Text, Float
 from db import Base
 
 class ArtworkDB(Base):
@@ -25,3 +25,7 @@ class UserInteractionDB(Base):
     artwork_id = Column(String, nullable=False)
     action = Column(String, nullable=False)
 
+class WallSelectionDB(Base):
+    __tablename__ = "wall_selections"
+    wall_index = Column(Text, primary_key=True)
+    selected_artworks = Column(JSON)
