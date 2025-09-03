@@ -1,5 +1,3 @@
-from PIL import Image
-import math
 import os
 import sys
 import asyncio
@@ -8,10 +6,6 @@ import pickle
 from tqdm import tqdm
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-from io import BytesIO
-import aiohttp
-import albumentations as A
-import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.config import Config
