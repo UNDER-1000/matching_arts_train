@@ -37,4 +37,4 @@ class PredictionWalls:
         top_k = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:k]
         top_k_ids, top_k_scores = zip(*top_k)
         top_k_str = [str(id) for id in top_k_ids]
-        return top_k_str, top_k_scores
+        return top_k_str, top_k_scores, top_k_ids
