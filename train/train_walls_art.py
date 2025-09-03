@@ -1,8 +1,11 @@
+import pickle
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+import itertools
 
 import os
 import sys
@@ -19,6 +22,40 @@ def prepare_dataset(embeddings_pairs, labels):
             X.append(combined)
             y.append(labels[key])
     return np.array(X), np.array(y)
+
+def split_dataset_by_wall(X, y, pairs, val_ratio=0.25, seed=42):
+    """
+    Split dataset so that no wall ID appears in both train and validation.
+    
+    Args:
+        X: np.array, features
+        y: np.array, labels
+        pairs: list of (wall_id, art_id) in the same order as X, y
+        val_ratio: fraction of walls to put in validation
+    """
+    rng = np.random.RandomState(seed)
+
+    # Collect unique wall IDs
+    walls = list({wall for wall, _ in pairs})
+    rng.shuffle(walls)
+
+    n_val = int(len(walls) * val_ratio)
+    val_walls = set(walls[:n_val])
+    train_walls = set(walls[n_val:])
+
+    # Split based on wall membership
+    train_idx, val_idx = [], []
+    for i, (wall, art) in enumerate(pairs):
+        if wall in train_walls:
+            train_idx.append(i)
+        else:
+            val_idx.append(i)
+
+    X_train, y_train = X[train_idx], y[train_idx]
+    X_val, y_val = X[val_idx], y[val_idx]
+
+    return (X_train, y_train), (X_val, y_val)
+
 
 def split_dataset(X, y, val_ratio=0.25, seed=42):
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=val_ratio, random_state=seed, stratify=y)
@@ -94,11 +131,13 @@ def load_model(input_dim, path="wall_art_model.pt"):
 def main():
     embeddings_pairs, labels = create_embedding_pairs_from_files(
         wall_path="embeddings_cache/wall_embeddings.pkl",
-        art_path="embeddings_cache/art_embeddings.pkl",
-        augmented_path="embeddings_cache/augmented_embeddings.pkl"
+        art_path="embeddings_cache/art_embeddings.pkl"
     )
     X, y = prepare_dataset(embeddings_pairs, labels)
-    (X_train, y_train), (X_val, y_val) = split_dataset(X, y)
+    pairs_list = list(embeddings_pairs.keys())  # "wall,art" strings
+    pairs = [(int(p.split(",")[0]), p.split(",")[1]) for p in pairs_list]
+
+    (X_train, y_train), (X_val, y_val) = split_dataset_by_wall(X, y, pairs)
 
     # Convert to tensors
     train_loader = DataLoader(TensorDataset(

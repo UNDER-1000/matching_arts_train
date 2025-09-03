@@ -155,6 +155,47 @@ def wall_interaction(user_id: str, wall_index: int):
             print(f"Response status: {response.status_code}")
             print(f"Response detail: {response.text}")
         return []
+    
+def delete_artwork(artwork_id: str):
+    """
+    Calls the /delete-artwork/{artwork_id} endpoint.
+    """
+    print(f"\n--- Deleting artwork '{artwork_id}' ---")
+    url = f"{BASE_URL}/delete-artwork/{artwork_id}"
+    try:
+        response = requests.delete(url)
+        response.raise_for_status()
+        data = response.json()
+        print("Delete response:")
+        print(json.dumps(data, indent=2))
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error deleting artwork: {e}")
+        if response is not None:
+            print(f"Response status: {response.status_code}")
+            print(f"Response detail: {response.text}")
+        return None
+
+
+def delete_by_artist(artist_id: str):
+    """
+    Calls the /delete-by-artist/{artist_id} endpoint.
+    """
+    print(f"\n--- Deleting all artworks by artist '{artist_id}' ---")
+    url = f"{BASE_URL}/delete-by-artist/{artist_id}"
+    try:
+        response = requests.delete(url)
+        response.raise_for_status()
+        data = response.json()
+        print("Delete by artist response:")
+        print(json.dumps(data, indent=2))
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error deleting by artist: {e}")
+        if response is not None:
+            print(f"Response status: {response.status_code}")
+            print(f"Response detail: {response.text}")
+        return None
 
 # --- Demo Client Logic ---
 if __name__ == "__main__":
@@ -192,5 +233,15 @@ if __name__ == "__main__":
     wall_result = wall_interaction(user1_id, wall_index)
     if wall_result:
         print(f"Recommended artworks for wall {wall_index}: {wall_result}")
+
+        # 4. Demo deleting
+    if all_artwork_ids_in_system:
+        # Delete a single artwork
+        delete_artwork(all_artwork_ids_in_system[0])
+
+        # Delete by artist (using the same artist_id as first artwork)
+        # You can extract artist_id from how you generated it in populate_artworks_from_folder
+        sample_artist_id = f"artst-{hash('Artist_A') % 1000}"  # example if first was Artist_A
+        delete_by_artist(sample_artist_id)
 
     print("\nDemo client finished.")

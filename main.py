@@ -6,7 +6,7 @@ from src.logic import Logic
 from src.walls_logic import PredictionWalls
 from db import connect_db, close_db, get_connection
 from sqlalchemy import text, select
-from models_db import UserInteractionDB, WallSelectionDB
+from models_db import UserInteractionDB, ArtworkDB
 
 app = FastAPI()
 artwork_recommender = None
@@ -77,6 +77,40 @@ async def record_artwork_feedback(user_id: str, artwork_id: str, action: str) ->
         )
 
     return [id for id in sorted_ids]
+
+@app.delete("/delete-artwork/{artwork_id}", status_code=200)
+async def delete_artwork(artwork_id: str):
+    async with get_connection() as session:
+        stmt = select(ArtworkDB).where(ArtworkDB.artwork_id == artwork_id)
+        result = await session.execute(stmt)
+        artwork = result.scalar_one_or_none()
+
+        if not artwork:
+            return {"status": "not found"}
+
+        await session.delete(artwork)
+        await session.commit()
+        return {"status": "deleted", "artwork_id": artwork_id}
+    
+@app.delete("/delete-by-artist/{artist_id}", status_code=200)
+async def delete_by_artist(artist_id: str):
+    async with get_connection() as session:
+        stmt = select(ArtworkDB).where(ArtworkDB.artist_id == artist_id)
+        result = await session.execute(stmt)
+        artworks = result.scalars().all()
+
+        if not artworks:
+            return {"status": "not found"}
+
+        for artwork in artworks:
+            await session.delete(artwork)
+
+        await session.commit()
+        return {
+            "status": "deleted",
+            "artist_id": artist_id,
+            "count": len(artworks)
+        }
 
 @app.post("/user-interaction", response_model=List[str])
 async def user_interaction(interaction: UserInteraction):

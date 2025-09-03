@@ -11,10 +11,9 @@ class PredictionWalls:
         self.model = load_model(input_dim=1536, path=model_path)
         self.model.eval()
         self.clip = ClipEmbed()
-        wall_embeddings, art_embeddings, _ = load_embeddings(
+        wall_embeddings, art_embeddings = load_embeddings(
             wall_path="embeddings_cache/wall_embeddings.pkl",
-            art_path="embeddings_cache/art_embeddings.pkl",
-            augmented_path="embeddings_cache/augmented_embeddings.pkl"
+            art_path="embeddings_cache/art_embeddings.pkl"
         )
         self.image_embeddings = art_embeddings
         self.wall_embeddings = wall_embeddings

@@ -71,8 +71,6 @@ async def load_wall_artwork_pairs(neg_ratio=1.0):
 async def create_all_embeddings(wall_ids, artwork_ids):
     """Create and cache all wall and artwork embeddings."""
     clip = ClipEmbed()
-
-    augmanted_embeddings = await create_augmented_embeddings(clip, artwork_ids)
     wall_embeddings = {}
     print("Embedding wall images...")
     for wall_id in tqdm(wall_ids):
@@ -91,27 +89,22 @@ async def create_all_embeddings(wall_ids, artwork_ids):
         path = f"{Config.images_url}{art_id}.jpg"
         art_embeddings[art_id] = clip.predict_imgs([path])[0]
 
+    return wall_embeddings, art_embeddings
 
-    return wall_embeddings, art_embeddings, augmanted_embeddings
 
-
-def save_embeddings(wall_embeddings, art_embeddings, augmented_embeddings, path="embeddings_cache"):
+def save_embeddings(wall_embeddings, art_embeddings, path="embeddings_cache"):
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, "wall_embeddings.pkl"), "wb") as f:
         pickle.dump(wall_embeddings, f)
     with open(os.path.join(path, "art_embeddings.pkl"), "wb") as f:
         pickle.dump(art_embeddings, f)
-    with open(os.path.join(path, "augmented_embeddings.pkl"), "wb") as f:
-        pickle.dump(augmented_embeddings, f)
 
-def load_embeddings(wall_path, art_path, augmented_path):
+def load_embeddings(wall_path, art_path):
     with open(wall_path, "rb") as f:
         wall_embeddings = pickle.load(f)
     with open(art_path, "rb") as f:
         art_embeddings = pickle.load(f)
-    with open(augmented_path, "rb") as f:
-        augmented_embeddings = pickle.load(f)
-    return wall_embeddings, art_embeddings, augmented_embeddings
+    return wall_embeddings, art_embeddings
 
 def create_embedding_pairs(pairs, wall_embeddings, art_embeddings):
     """Return dict: {wall,art} → (wall_emb, art_emb)"""
@@ -122,22 +115,22 @@ def create_embedding_pairs(pairs, wall_embeddings, art_embeddings):
         embeddings_pairs[key] = (wall_embeddings[wall_id], art_embeddings[art_id])
     return embeddings_pairs
 
-def create_embedding_pairs_from_files(wall_path, art_path, augmented_path):
-    if not os.path.exists(wall_path) or not os.path.exists(art_path) or not os.path.exists(augmented_path):
+def create_embedding_pairs_from_files(wall_path, art_path):
+    if not os.path.exists(wall_path) or not os.path.exists(art_path):
         pairs, labels = asyncio.run(load_wall_artwork_pairs(neg_ratio=4.0))
 
         wall_ids = list({wall for wall, _ in pairs})
         art_ids = list({art for _, art in pairs})
 
-        wall_embeddings, art_embeddings, augmented_embeddings = asyncio.run(create_all_embeddings(wall_ids, art_ids))
-        save_embeddings(wall_embeddings, art_embeddings, augmented_embeddings, path="embeddings_cache")
+        wall_embeddings, art_embeddings = asyncio.run(create_all_embeddings(wall_ids, art_ids))
+        save_embeddings(wall_embeddings, art_embeddings, path="embeddings_cache")
 
-    wall_embeddings, art_embeddings, augmented_embeddings = load_embeddings(wall_path, art_path, augmented_path)
+    wall_embeddings, art_embeddings = load_embeddings(wall_path, art_path)
     rows = asyncio.run(fetch_wall_selections())
     wall_to_positive = extract_positive_data(rows)
-    return create_pairs_from_embeddings(wall_embeddings, art_embeddings, augmented_embeddings, wall_to_positive)
+    return create_pairs_from_embeddings(wall_embeddings, art_embeddings, wall_to_positive)
 
-def create_pairs_from_embeddings(wall_embeddings, art_embeddings, augmented_embeddings, wall_to_positive):
+def create_pairs_from_embeddings(wall_embeddings, art_embeddings, wall_to_positive):
     emb_pairs, labels = {}, {}
 
     for wall_id, selected in wall_to_positive.items():
@@ -149,14 +142,6 @@ def create_pairs_from_embeddings(wall_embeddings, art_embeddings, augmented_embe
                 emb_pairs[key] = (wall_embeddings[wall_id], art_embeddings[art_id])
                 labels[key] = 1
 
-                # Add augmented positives (if exist)
-                if art_id in augmented_embeddings:
-                    for i, aug_emb in enumerate(augmented_embeddings[art_id]):
-                        key = f"{wall_id},{art_id}_aug{i}"
-                        emb_pairs[key] = (wall_embeddings[wall_id], aug_emb)
-                        labels[key] = 1
-                        labels[f"{wall_id},{art_id}_aug{i}"] = 1
-
         neg_candidates = list(all_positive_ids - set(selected))
         sampled_neg = random.sample(neg_candidates, min(len(neg_candidates), len(selected) * 3))
 
@@ -167,66 +152,6 @@ def create_pairs_from_embeddings(wall_embeddings, art_embeddings, augmented_embe
                 labels[key] = 0
 
     return emb_pairs, labels
-
-
-async def fetch_image(session, url):
-    """Fetch image from a URL and return a PIL Image."""
-    async with session.get(url) as resp:
-        if resp.status != 200:
-            raise Exception(f"HTTP {resp.status} for {url}")
-        data = await resp.read()
-        return Image.open(BytesIO(data)).convert("RGB")
-    
-def get_augment_pipelines():
-    return [
-        # Color & lighting
-        A.Compose([
-            A.RandomBrightnessContrast(0.3, 0.3, p=1),
-            A.HueSaturationValue(20, 25, 20, p=1),
-        ]),
-        # Blur & noise
-        A.Compose([
-            A.MotionBlur(blur_limit=5, p=1),
-            A.GaussNoise(var_limit=(10, 50), p=1),
-        ]),
-        # Geometry
-        A.Compose([
-            A.HorizontalFlip(p=0.5),
-            A.Rotate(limit=25, p=0.7),
-            A.RandomResizedCrop(size=(224, 224), scale=(0.7, 1.0), p=1),
-        ]),
-        # Compression & artifacts
-        A.Compose([
-            A.ImageCompression(quality_lower=50, quality_upper=90, p=1),
-            A.Downscale(scale_min=0.5, scale_max=0.9, p=0.5),  # simulate low-res
-        ])
-    ]
-
-async def create_augmented_embeddings(clip, urls):
-    """Create augmented embeddings for a list of image URLs."""
-    augmentations = get_augment_pipelines()
-    all_embeddings = {}
-
-    async with aiohttp.ClientSession() as session:
-        for url in tqdm(urls, desc="Creating augmented embeddings"):
-            try:
-                image = await fetch_image(session, f"{Config.images_url}{url}.jpg")
-            except Exception as e:
-                print(f"Failed to fetch {url}: {e}")
-                continue
-
-            augmented_images = [aug(image=np.array(image))["image"] for aug in augmentations]
-            temp_urls = [f"temp_aug_{i}.jpg" for i in range(len(augmented_images))]
-
-            for i, aug_image in enumerate(augmented_images):
-                Image.fromarray(aug_image).save(temp_urls[i])
-            embeddings = clip.predict_imgs(temp_urls)
-            all_embeddings[url] = embeddings
-
-            for temp_url in temp_urls:
-                os.remove(temp_url)
-
-    return all_embeddings
 
 if __name__ == "__main__":
     # Load data and generate positive/negative pairs
