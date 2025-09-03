@@ -122,7 +122,7 @@ async def user_interaction(interaction: UserInteraction):
         return await record_artwork_feedback(user_id, artwork_id, action)
     elif action == "wall":
         recommender = get_walls_recommender()
-        return recommender.predict(artwork_id, k=10)[0]
+        return recommender.predict(artwork_id, k=10)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
