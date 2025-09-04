@@ -150,7 +150,7 @@ def main():
     model = WallArtClassifier(input_dim=X.shape[1], dropout_rate=0.5)
     print(f"input_dim: {X.shape[1]}")
     trained_model, train_losses, val_losses = train_model(
-        model, train_loader, val_loader, epochs=27, lr=0.005, weight_decay=0.0001
+        model, train_loader, val_loader, epochs=10, lr=0.005, weight_decay=0.0001
     )
 
     # Save model

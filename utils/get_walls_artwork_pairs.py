@@ -62,43 +62,12 @@ async def load_wall_artwork_pairs(neg_ratio=1.0):
     pairs, labels = create_balanced_pairs(wall_to_positive, neg_ratio)
     return pairs, labels
 
-async def create_all_embeddings(wall_ids, artwork_ids):
-    """Create and cache all wall and artwork embeddings."""
-    clip = ClipEmbed()
-    wall_embeddings = {}
-    print("Embedding wall images...")
-    for wall_id in tqdm(wall_ids):
-        while True:
-            try:
-                path = f"{Config.walls_url}{wall_id + 1}.jpg"
-                wall_embeddings[wall_id] = clip.predict_imgs([path])[0]
-                break
-            except Exception as e:
-                print(f"Failed to embed wall {wall_id}: {e}, retrying in 0.5s...")
-                await asyncio.sleep(0.5)
-
-    art_embeddings = {}
-    print("Embedding artwork images...")
-    for art_id in tqdm(artwork_ids):
-        path = f"{Config.images_url}{art_id}.jpg"
-        art_embeddings[art_id] = clip.predict_imgs([path])[0]
-
-    return wall_embeddings, art_embeddings
-
-
 def save_embeddings(wall_embeddings, art_embeddings, path="embeddings_cache"):
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, "wall_embeddings.pkl"), "wb") as f:
         pickle.dump(wall_embeddings, f)
     with open(os.path.join(path, "art_embeddings.pkl"), "wb") as f:
         pickle.dump(art_embeddings, f)
-
-def load_embeddings(wall_path, art_path):
-    with open(wall_path, "rb") as f:
-        wall_embeddings = pickle.load(f)
-    with open(art_path, "rb") as f:
-        art_embeddings = pickle.load(f)
-    return wall_embeddings, art_embeddings
 
 def create_embedding_pairs(pairs, wall_embeddings, art_embeddings):
     """Return dict: {wall,art} → (wall_emb, art_emb)"""
@@ -110,18 +79,14 @@ def create_embedding_pairs(pairs, wall_embeddings, art_embeddings):
     return embeddings_pairs
 
 def create_embedding_pairs_from_files(wall_path, art_path):
-    if not os.path.exists(wall_path) or not os.path.exists(art_path):
-        pairs, labels = asyncio.run(load_wall_artwork_pairs(neg_ratio=4.0))
-
-        wall_ids = list({wall for wall, _ in pairs})
-        art_ids = list({art for _, art in pairs})
-
-        wall_embeddings, art_embeddings = asyncio.run(create_all_embeddings(wall_ids, art_ids))
-        save_embeddings(wall_embeddings, art_embeddings, path="embeddings_cache")
-
-    wall_embeddings, art_embeddings = load_embeddings(wall_path, art_path)
     rows = asyncio.run(fetch_wall_selections())
     wall_to_positive = extract_positive_data(rows)
+
+    # Update embeddings only if new IDs appear
+    wall_embeddings, art_embeddings = asyncio.run(
+        update_embeddings_if_needed(wall_path, art_path, wall_to_positive)
+    )
+
     return create_pairs_from_embeddings(wall_embeddings, art_embeddings, wall_to_positive)
 
 def create_pairs_from_embeddings(wall_embeddings, art_embeddings, wall_to_positive):
@@ -147,22 +112,50 @@ def create_pairs_from_embeddings(wall_embeddings, art_embeddings, wall_to_positi
 
     return emb_pairs, labels
 
-if __name__ == "__main__":
-    # Load data and generate positive/negative pairs
-    pairs, labels = asyncio.run(load_wall_artwork_pairs())
+async def update_embeddings_if_needed(wall_path, art_path, wall_to_positive):
+    """Ensure embeddings cache contains all required walls/artworks."""
 
-    wall_ids = list({wall for wall, _ in pairs})
-    art_ids = list({art for _, art in pairs})
+    # Load existing if available
+    wall_embeddings = {}
+    art_embeddings = {}
+    if os.path.exists(wall_path):
+        with open(wall_path, "rb") as f:
+            wall_embeddings = pickle.load(f)
+    if os.path.exists(art_path):
+        with open(art_path, "rb") as f:
+            art_embeddings = pickle.load(f)
 
-    # Embed each wall/artwork once
-    wall_embeddings, art_embeddings, _ = asyncio.run(create_all_embeddings(wall_ids, art_ids))
+    # Required IDs from DB
+    required_walls = set(wall_to_positive.keys())
+    required_arts = set().union(*wall_to_positive.values())
 
-    # (Optional) Save for reuse
-    save_embeddings(wall_embeddings, art_embeddings)
+    # Missing IDs
+    missing_walls = required_walls - wall_embeddings.keys()
+    missing_arts = required_arts - art_embeddings.keys()
 
-    # Create (wall, artwork) → embedding pairs
-    embeddings_pairs = create_embedding_pairs(pairs, wall_embeddings, art_embeddings)
+    if missing_walls or missing_arts:
+        print(f"⚡ Found {len(missing_walls)} missing walls, {len(missing_arts)} missing artworks. Embedding now...")
+        clip = ClipEmbed()
 
-    print(f"✅ Total pairs: {len(embeddings_pairs)}")
-    print(f"✅ Positives: {sum(1 for v in labels.values() if v == 1)}")
-    print(f"✅ Negatives: {sum(1 for v in labels.values() if v == 0)}")
+        # Embed missing walls
+        for wall_id in tqdm(missing_walls, desc="Embedding new walls"):
+            while True:
+                try:
+                    path = f"{Config.walls_url}{wall_id + 1}.jpg"
+                    wall_embeddings[wall_id] = clip.predict_imgs([path])[0]
+                    break
+                except Exception as e:
+                    print(f"Failed to embed wall {wall_id}: {e}, retrying in 0.5s...")
+                    await asyncio.sleep(0.5)
+
+        # Embed missing artworks
+        for art_id in tqdm(missing_arts, desc="Embedding new artworks"):
+            path = f"{Config.images_url}{art_id}.jpg"
+            art_embeddings[art_id] = clip.predict_imgs([path])[0]
+
+        # Save updated cache
+        save_embeddings(wall_embeddings, art_embeddings, path=os.path.dirname(wall_path))
+    else:
+        print("✅ No new embeddings needed. Using cached files.")
+
+    return wall_embeddings, art_embeddings
