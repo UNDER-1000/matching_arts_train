@@ -69,6 +69,13 @@ def save_embeddings(wall_embeddings, art_embeddings, path="embeddings_cache"):
     with open(os.path.join(path, "art_embeddings.pkl"), "wb") as f:
         pickle.dump(art_embeddings, f)
 
+def load_embeddings(wall_path, art_path):
+    with open(wall_path, "rb") as f:
+        wall_embeddings = pickle.load(f)
+    with open(art_path, "rb") as f:
+        art_embeddings = pickle.load(f)
+    return wall_embeddings, art_embeddings
+
 def create_embedding_pairs(pairs, wall_embeddings, art_embeddings):
     """Return dict: {wall,art} → (wall_emb, art_emb)"""
     embeddings_pairs = {}
