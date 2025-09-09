@@ -32,8 +32,6 @@ class PredictionWalls:
                 scores[art_id] = score
 
         # Get top-k recommendations
-        all_items_sort = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        print(f"All items sorted: {all_items_sort}")
         top_k = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:k]
         top_k_ids, top_k_scores = zip(*top_k)
         top_k_str = [str(id) for id in top_k_ids]

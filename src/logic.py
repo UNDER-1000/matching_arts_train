@@ -4,13 +4,21 @@ from sklearn.cluster import SpectralClustering
 from collections import defaultdict
 import  heapq
 from typing import List
+import torch
+
+from train.train_walls_art import load_model
+from utils.embed_model import ClipEmbed
 from src.features import Features
+from src.config import Config
 from models import Artwork
 
 
 class Logic:
-    def __init__(self):
+    def __init__(self, model_path=Config.walls_model_path):
         self.features = Features()
+        self.model = load_model(input_dim=1536, path=model_path)
+        self.model.eval()
+        self.clip = ClipEmbed()
 
     async def add_artwork(self, artwork: Artwork):
         return await self.features.add_artwork(artwork)
@@ -50,7 +58,7 @@ class Logic:
 
         return normalized_score.reshape(-1, 1)
 
-    async def predict(self, artwork_id: List[int], target: List[int], embedding_weight: float = 0.4, color_weight: float = 0.3, abstract_weight: float = 0.1, noisy_weight: float = 0.1, paint_weight: float = 0.1):
+    async def predict_artworks(self, artwork_id: List[int], target: List[int], embedding_weight: float = 0.4, color_weight: float = 0.3, abstract_weight: float = 0.1, noisy_weight: float = 0.1, paint_weight: float = 0.1):
         liked_ids = [id for id, label in zip(artwork_id, target) if label == 1]
         disliked_ids = [id for id, label in zip(artwork_id, target) if label == 0]
         print(f"{len(liked_ids)=}, {len(disliked_ids)=}")
@@ -106,6 +114,27 @@ class Logic:
             top_predictions.append(candidates['ids'][idx])
 
         return top_predictions
+    
+    async def predict_walls(self, wall_path, k=30):
+        print("Predicting walls...")
+        wall_embedding = self.clip.predict_imgs([wall_path])[0]
+        wall_tensor = torch.tensor(wall_embedding, dtype=torch.float32).unsqueeze(0)
+
+        scores = {}
+        candidates = await self.features.get_all_ids_with_embeddings_np()
+        with torch.no_grad():
+            for art_id, feature in zip(candidates["ids"], candidates["embeddings"]):
+                art_embedding = feature
+                art_tensor = torch.tensor(art_embedding, dtype=torch.float32).unsqueeze(0)
+                input_tensor = torch.cat((wall_tensor, art_tensor), dim=1)
+                score = self.model(input_tensor).item()
+                scores[art_id] = score
+
+        # Get top-k recommendations
+        top_k = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:k]
+        top_k_ids, top_k_scores = zip(*top_k)
+        top_k_str = [str(id) for id in top_k_ids]
+        return top_k_str
 
 if __name__ == '__main__':
 	l = Logic()

@@ -6,6 +6,7 @@ import json
 import polars as pl
 from src.config import Config
 import os
+import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -24,6 +25,7 @@ class Features:
         self.AsyncSessionLocal = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
     async def get_ids_np(self, artwork_id):
+        print("get ids")
         async with self.AsyncSessionLocal() as session:
             result = await session.execute(
                 select(
@@ -53,6 +55,7 @@ class Features:
         )
 
     async def get_not_ids_np(self, artwork_id):
+        print("get no ids")
         async with self.AsyncSessionLocal() as session:
             result = await session.execute(
                 select(
@@ -86,9 +89,30 @@ class Features:
 
 
     async def get_all_ids_np(self):
+        print("get all")
         async with self.AsyncSessionLocal() as session:
             result = await session.execute(select(ArtworkDB.artwork_id))
             return np.array([row[0] for row in result.all()])
+
+    async def get_all_ids_with_embeddings_np(self):
+        print("get all ids with embeddings")
+        async with self.AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(
+                    ArtworkDB.artwork_id,
+                    ArtworkDB.embeddings
+                )
+            )
+            rows = result.all()
+
+        ids = np.array([row[0] for row in rows])
+        embeddings = np.array([row[1] for row in rows])
+
+        return dict(
+            ids=ids,
+            embeddings=embeddings
+        )
+
 
     async def get_pred_likes(self, artwork_id, sorted_indexes):
         async with self.AsyncSessionLocal() as session:
@@ -113,46 +137,51 @@ class Features:
     def read_images_ids(self):
         return [img[:-4] for img in os.listdir(Config.images_folder) if img.endswith('.jpg')]
 
-    async def add_artwork(self, artwork: Artwork):        
-        async with self.AsyncSessionLocal() as session:
-            async with session.begin():
-                result = await session.get(ArtworkDB, artwork.artwork_id)
-                if result:
-                    print(f"Artwork {artwork.artwork_id} already exists.")
-                    return False
+    async def add_artwork(self, artwork: Artwork): 
+        while True:
+            try:
+                async with self.AsyncSessionLocal() as session:
+                    async with session.begin():
+                        result = await session.get(ArtworkDB, artwork.artwork_id)
+                        if result:
+                            print(f"Artwork {artwork.artwork_id} already exists.")
+                            return False
 
-                colors = [self.colors_api.predict_from_path(path) for path in artwork.images]
-                avg_color = np.mean(colors, axis=0)
+                        colors = [self.colors_api.predict_from_path(path) for path in artwork.images]
+                        avg_color = np.mean(colors, axis=0)
 
-                embeddings = [self.embeddings_api.predict_from_path(path) for path in artwork.images]
-                avg_embedding = np.mean(embeddings, axis=0)
+                        embeddings = [self.embeddings_api.predict_from_path(path) for path in artwork.images]
+                        avg_embedding = np.mean(embeddings, axis=0)
 
-                classifier_preds = self.classifier_api.predict_from_embedding(avg_embedding)
+                        classifier_preds = self.classifier_api.predict_from_embedding(avg_embedding)
 
-                new_artwork = ArtworkDB(
-                    artwork_id=artwork.artwork_id,
-                    artist_id=artwork.artist_id,
-                    artist_name=artwork.artist_name,
-                    artwork_name=artwork.artwork_name,
-                    images=artwork.images,
-                    description=artwork.description or "",
-                    category=artwork.category or "",
-                    properties={
-                        "media": artwork.media,
-                        "medium": artwork.medium,
-                        "size": artwork.size,
-                        "price": artwork.price,
-                        "styles": artwork.styles,
-                        "subject": artwork.subject,
-                    },
-                    embeddings=avg_embedding.tolist(),
-                    colors=avg_color.tolist(),
-                    abstract=float(classifier_preds['abstract']),
-                    noisy=float(classifier_preds['noisy']),
-                    paint=float(classifier_preds['paint']),
-                )
-                print(f"classifier_preds={classifier_preds}")
-                print(f"classifiers from new_artwork={new_artwork.abstract}, {new_artwork.noisy}, {new_artwork.paint}")
-                session.add(new_artwork)
-            await session.commit()
-        return True
+                        new_artwork = ArtworkDB(
+                            artwork_id=artwork.artwork_id,
+                            artist_id=artwork.artist_id,
+                            artist_name=artwork.artist_name,
+                            artwork_name=artwork.artwork_name,
+                            images=artwork.images,
+                            description=artwork.description or "",
+                            category=artwork.category or "",
+                            properties={
+                                "media": artwork.media,
+                                "medium": artwork.medium,
+                                "size": artwork.size,
+                                "price": artwork.price,
+                                "styles": artwork.styles,
+                                "subject": artwork.subject,
+                            },
+                            embeddings=avg_embedding.tolist(),
+                            colors=avg_color.tolist(),
+                            abstract=float(classifier_preds['abstract']),
+                            noisy=float(classifier_preds['noisy']),
+                            paint=float(classifier_preds['paint']),
+                        )
+                        print(f"classifier_preds={classifier_preds}")
+                        print(f"classifiers from new_artwork={new_artwork.abstract}, {new_artwork.noisy}, {new_artwork.paint}")
+                        session.add(new_artwork)
+                    await session.commit()
+                return True
+            except Exception as e:
+                print(f"DB connection failed: {e}, retrying in 10s...")
+                await asyncio.sleep(10)
