@@ -134,4 +134,4 @@ async def user_interaction(interaction: UserInteraction):
         return await logic.predict_walls(artwork_id, k=10)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
