@@ -27,7 +27,7 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Expose FastAPI port
-EXPOSE 8000
+EXPOSE 8080
 
 # Run the FastAPI app
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
