@@ -17,8 +17,9 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN python3 -c "import clip; model = clip.load('ViT-L/14@336px', device='cpu'); del model" && \
-    python3 -c "import gc; gc.collect()"
+# RUN python3 -c "import clip; model = clip.load('ViT-L/14@336px', device='cpu'); del model" && \
+#     python3 -c "import gc; gc.collect()"
+
 # Copy source code
 COPY . .
 
@@ -29,4 +30,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 # Run the FastAPI app
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
