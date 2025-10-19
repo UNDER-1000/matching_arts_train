@@ -8,8 +8,9 @@ class Config:
 	db_name = "aiarts"
 	db_user_name="moshe"
 	db_password="~%GiYG7REj}s(hDh"
+	db_host = "34.76.19.180"
 
-	db_gcp_url = f"postgresql+asyncpg://{db_user_name}:{db_password}@34.76.19.180:5432/{db_name}"
+	db_gcp_url = f"postgresql+asyncpg://{db_user_name}:{db_password}@{db_host}:5432/{db_name}"
 
 	db_url = db_gcp_url
 	# supabase_password = "&6a*bFbMm$Ncb#q"
