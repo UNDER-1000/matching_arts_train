@@ -5,10 +5,10 @@ class Config:
 	walls_model_path = "wall_art_model.pt"
 	colors_n_bins = 30
 
-	db_name = "aiarts"
-	db_user_name="moshe"
-	db_password="~%GiYG7REj}s(hDh"
-	db_host = "34.76.19.180"
+	db_name = "postgres"
+	db_user_name="postgres"
+	db_password=";-C/Ca@gbQ}*&g4s"
+	db_host = "136.116.137.58"
 
 	db_gcp_url = f"postgresql+asyncpg://{db_user_name}:{db_password}@{db_host}:5432/{db_name}"
 
