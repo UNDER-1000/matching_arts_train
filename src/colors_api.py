@@ -20,6 +20,11 @@ class ColorsApi:
 			pil_image = Image.open(BytesIO(response.content))
 		else:
 			pil_image = Image.open(image_path)
+		
+		# Convert grayscale images to RGB
+		if pil_image.mode != 'RGB':
+			pil_image = pil_image.convert('RGB')
+		
 		cv_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
 		
 		h = (cv_image[:, :, 0] / 180 * self.n_bins).astype(int)

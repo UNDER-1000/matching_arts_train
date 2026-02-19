@@ -147,10 +147,25 @@ class Features:
                             print(f"Artwork {artwork.artwork_id} already exists.")
                             return False
 
-                        colors = [self.colors_api.predict_from_path(path) for path in artwork.images]
+                        colors = []
+                        for path in artwork.images:
+                            try:
+                                colors.append(self.colors_api.predict_from_path(path))
+                            except Exception as e:
+                                print(f"Failed to process colors for {path}: {e}")
+                        
+                        embeddings = []
+                        for path in artwork.images:
+                            try:
+                                embeddings.append(self.embeddings_api.predict_from_path(path))
+                            except Exception as e:
+                                print(f"Failed to process embeddings for {path}: {e}")
+                        
+                        if not colors or not embeddings:
+                            print(f"All images failed for artwork {artwork.artwork_id}")
+                            return False
+                        
                         avg_color = np.mean(colors, axis=0)
-
-                        embeddings = [self.embeddings_api.predict_from_path(path) for path in artwork.images]
                         avg_embedding = np.mean(embeddings, axis=0)
 
                         classifier_preds = self.classifier_api.predict_from_embedding(avg_embedding)
